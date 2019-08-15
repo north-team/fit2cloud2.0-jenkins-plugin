@@ -436,7 +436,6 @@ public class F2CCodeDeployPublisher extends Publisher {
                     log("删除 Zip 文件 " + zipFile.getAbsolutePath());
                     zipFile.delete();
                 }catch (Exception e){
-                    e.printStackTrace();
                 }
             }
         }

@@ -23,9 +23,6 @@
          <f:entry title="应用名称" field="applicationId">
          		<f:select />
          </f:entry>
-         <f:entry title="环境" field="repositorySettingId">
-                 <f:select />
-         </f:entry>
      </f:section>
 
          <f:section title="Zip文件上传设置">

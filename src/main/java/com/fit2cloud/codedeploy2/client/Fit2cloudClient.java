@@ -1,6 +1,7 @@
 package com.fit2cloud.codedeploy2.client;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.fit2cloud.codedeploy2.client.model.*;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpEntity;
@@ -18,6 +19,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.*;
 
 public class Fit2cloudClient {
@@ -202,11 +204,15 @@ public class Fit2cloudClient {
         return JSON.parseObject(result.getData(), ApplicationDeployment.class);
     }
 
-
     public ApplicationVersion createApplicationVersion(ApplicationVersionDTO applicationVersion, String workspaceId) {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
         Result result = call(ApiUrlConstants.APPLICATION_VERSION_SAVE, RequestMethod.POST, applicationVersion, headers);
+        try {
+            JSON.parseObject(result.getData(), ApplicationVersion.class);
+        }catch (Exception e){
+            throw new Fit2CloudException(result.getData());
+        }
         return JSON.parseObject(result.getData(), ApplicationVersion.class);
     }
 
@@ -246,9 +252,10 @@ public class Fit2cloudClient {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
         Result result = JSON.parseObject(responseJson, Result.class);
         if (!result.isSuccess()) {
-            throw new Fit2CloudException(result.getMessage());
+            throw new Fit2CloudException(result.getMessage() + result.isSuccess() + result.getData() + url);
         }
         return JSON.parseObject(responseJson, Result.class);
     }
@@ -289,7 +296,7 @@ class ApiUrlConstants {
     public static final String CLUSTER_LIST = "devops/cluster/list";
     public static final String CLUSTER_ROLE_LIST = "devops/clusterRole/list";
     public static final String SERVER_LIST = "devops/server/list";
-    public static final String APPLICATION_VERSION_SAVE = "devops/application/version/save";
+    public static final String APPLICATION_VERSION_SAVE = "devops/application/version/save-version";
     public static final String APPLICATION_DEPLOY_SAVE = "devops/application/deploy/save";
     public static final String APPLICATION_ENV_LIST = "devops/application/setting/env/list";
 }

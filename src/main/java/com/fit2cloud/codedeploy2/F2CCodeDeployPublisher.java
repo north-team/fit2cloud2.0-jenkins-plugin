@@ -259,13 +259,13 @@ public class F2CCodeDeployPublisher extends Publisher {
 ////                }
 //            }
 //            if (repSetting != null) {
-                List<ApplicationRepository> repositories = fit2cloudClient.getApplicationRepositorys(workspaceId);
-                for (ApplicationRepository re : repositories) {
-                    if (app.getApplicationRepositoryId().equals(re.getId())) {
-                        applicationRepository = re;
+            List<ApplicationRepository> repositories = fit2cloudClient.getApplicationRepositorys(workspaceId);
+            for (ApplicationRepository re : repositories) {
+                if (app.getApplicationRepositoryId().equals(re.getId())) {
+                    applicationRepository = re;
 
-                    }
                 }
+            }
 //            }
 
 //            if (rep != null) {
@@ -289,6 +289,9 @@ public class F2CCodeDeployPublisher extends Publisher {
         File zipFile = null;
         String zipFileName = null;
         String newAddress = null;
+
+        String fileMd5 = "";
+
         try {
             zipFileName = projectName + "-" + builtNumber + ".zip";
             String includesNew = Utils.replaceTokens(build, listener, this.includes);
@@ -296,7 +299,17 @@ public class F2CCodeDeployPublisher extends Publisher {
             String appspecFilePathNew = Utils.replaceTokens(build, listener, this.appspecFilePath);
 
             zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
+            log("zipFileName: " + zipFileName);
 
+            log("----->workspace" + workspace.toString());
+            String s1 = workspace.toString() + "/target/" + zipFileName.replaceAll("-" + zipFileName.split("-")[zipFileName.split("-").length - 1], ".zip");
+            String s2 = workspace.toString() + "/target/" + nexusArtifactId + ".zip";
+            log("----->s1" + s1);
+            log("----->s2" + s2);
+
+            log("开始计算文件文件MD5值");
+            fileMd5 = DigestUtils.md5Hex(new FileInputStream(zipFile));
+            log("fileMd5: " + fileMd5);
 
             switch (artifactType) {
                 case ArtifactType.OSS:
@@ -382,6 +395,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                         return false;
                     }
                     log("上传zip文件到nexus服务器成功!");
+
                     break;
                 case ArtifactType.S3:
                     log("开始上传zip文件到AWS服务器");
@@ -443,7 +457,7 @@ public class F2CCodeDeployPublisher extends Publisher {
 
         ApplicationVersion appVersion = null;
 //        try {
-            log("注册应用版本中...");
+        log("注册应用版本中...");
         String newAppVersion = null;
         try {
             newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersionName);
@@ -453,17 +467,24 @@ public class F2CCodeDeployPublisher extends Publisher {
             e.printStackTrace();
         }
         ApplicationVersionDTO applicationVersion = new ApplicationVersionDTO();
-            applicationVersion.setAppId(this.applicationId);
-            applicationVersion.setName(newAppVersion);
+        applicationVersion.setAppId(this.applicationId);
+        applicationVersion.setName(newAppVersion);
 //            assert repSetting != null;
 //            applicationVersion.setEnvironmentValueId(repSetting.getEnvId());
-            applicationVersion.setApplicationRepositoryId(applicationRepository.getId());
-            applicationVersion.setResourcePath(newAddress);
-            applicationVersion.setDeployType("add");
+        applicationVersion.setApplicationRepositoryId(applicationRepository.getId());
+        applicationVersion.setResourcePath(newAddress);
+        applicationVersion.setDeployType("add");
         try {
             String zipName = newAddress.split("/")[newAddress.split("/").length-1];
-            applicationVersion.setFileMd5(DigestUtils.md5Hex(new FileInputStream(new File(workspace.toString() + "/target/" + zipName.replaceAll("-"+zipName.split("-")[zipName.split("-").length-1],".zip")))));
-        } catch (IOException e) {
+            String fileName = workspace.toString() + "/target/" + zipName.replaceAll("-" + zipName.split("-")[zipName.split("-").length - 1], ".zip");
+            log("文件名称: " + fileName);
+            log("zip 文件名称: " + zipFile.getAbsolutePath());
+
+            // applicationVersion.setFileMd5(DigestUtils.md5Hex(new FileInputStream(new File(workspace.toString() + "/target/" + zipName.replaceAll("-"+zipName.split("-")[zipName.split("-").length-1],".zip")))));
+            // applicationVersion.setFileMd5(DigestUtils.md5Hex(new FileInputStream(new File(workspace.toString() + "/target/" + zipName.replaceAll("-"+zipName.split("-")[zipName.split("-").length-1],".zip")))));
+            applicationVersion.setFileMd5(fileMd5);
+
+        } catch (Exception e) {
             e.printStackTrace();
         }
 //        File f = new File(workspace.toString() + newAddress.split("/")[newAddress.split("/").length-1]);
@@ -562,9 +583,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         FileOutputStream outputStream = new FileOutputStream(zipFile);
         try {
             String allIncludes = includesNew + ",appspec.yml";
-            sourceDirectory.zip(
-                    outputStream,
-                    new DirScanner.Glob(allIncludes, excludesNew)
+            sourceDirectory.zip(outputStream, new DirScanner.Glob(allIncludes, excludesNew)
             );
         } finally {
             outputStream.close();

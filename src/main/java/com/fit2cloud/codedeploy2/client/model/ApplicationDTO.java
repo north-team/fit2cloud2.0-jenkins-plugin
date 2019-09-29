@@ -10,7 +10,6 @@ public class ApplicationDTO extends Application {
     private Integer countVersion;
     private List<ApplicationRepositorySetting> applicationRepositorySettings;
 
-
     public List<ApplicationRepositorySetting> getApplicationRepositorySettings() {
         return applicationRepositorySettings;
     }

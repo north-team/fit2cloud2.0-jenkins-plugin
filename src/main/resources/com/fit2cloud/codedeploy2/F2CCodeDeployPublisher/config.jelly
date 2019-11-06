@@ -84,18 +84,24 @@
     		    <f:entry title="目标虚机" field="cloudServerId">
     		        <f:select />
     		    </f:entry>
-    		    <f:entry title="部署策略" field="deployPolicy">
-                  	<f:select />
-              	</f:entry>
+				<f:entry title="触发类型" field="executeType">
+					<f:select />
+				</f:entry>
+				<f:entry title="错误处理策略" field="failStrategy">
+					<f:select />
+				</f:entry>
+    		    <!--<f:entry title="部署策略" field="deployPolicy">-->
+                  	<!--<f:select />-->
+              	<!--</f:entry>-->
 
-    	        <f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="true" inline="true">
-    	            <f:entry title="查询超时时间 (秒)" field="pollingTimeoutSec">
-    	                <f:textbox default="600"/>
-    	            </f:entry>
-    	            <f:entry title="查询间隔时间 (秒)" field="pollingFreqSec">
-    	                <f:textbox default="15"/>
-    	            </f:entry>
-    	        </f:optionalBlock>
+    	        <!--<f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="true" inline="true">-->
+    	            <!--<f:entry title="查询超时时间 (秒)" field="pollingTimeoutSec">-->
+    	                <!--<f:textbox default="600"/>-->
+    	            <!--</f:entry>-->
+    	            <!--<f:entry title="查询间隔时间 (秒)" field="pollingFreqSec">-->
+    	                <!--<f:textbox default="15"/>-->
+    	            <!--</f:entry>-->
+    	        <!--</f:optionalBlock>-->
         	</f:optionalBlock>
         </f:section>
 

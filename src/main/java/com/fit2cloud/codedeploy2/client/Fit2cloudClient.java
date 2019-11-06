@@ -2,8 +2,10 @@ package com.fit2cloud.codedeploy2.client;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.aliyun.oss.common.utils.LogUtils;
 import com.fit2cloud.codedeploy2.client.model.*;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.logging.Log;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -199,6 +201,15 @@ public class Fit2cloudClient {
         return JSON.parseObject(result.getData(), ApplicationDeployment.class);
     }
 
+    public String deployAppVersion(ApplicationDeployment applicationDeployment, String workspaceId) {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.APPLICATION_VERSION_DEPLOY, RequestMethod.POST, applicationDeployment, headers);
+        Log log = LogUtils.getLog();
+        log.info("部署结果"+result.getData());
+        return result.getData();
+    }
+
     public ApplicationDeployment getApplicationDeployment(String applicationDeploymentId) {
         Result result = call(ApiUrlConstants.APPLICATION_SETTING_GET + "?applicationDeploymentId=" + applicationDeploymentId, RequestMethod.GET);
         return JSON.parseObject(result.getData(), ApplicationDeployment.class);
@@ -298,6 +309,7 @@ class ApiUrlConstants {
     public static final String SERVER_LIST = "devops/server/list";
     public static final String APPLICATION_VERSION_SAVE = "devops/application/version/save-version";
     public static final String APPLICATION_DEPLOY_SAVE = "devops/application/deploy/save";
+    public static final String APPLICATION_VERSION_DEPLOY = "devops/application/version/deploy";
     public static final String APPLICATION_ENV_LIST = "devops/application/setting/env/list";
 }
 

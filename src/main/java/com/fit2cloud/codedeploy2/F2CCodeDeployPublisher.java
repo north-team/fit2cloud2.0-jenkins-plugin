@@ -59,6 +59,8 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean ossChecked;
     private final boolean s3Checked;
     private final boolean artifactoryChecked;
+    private final String failStrategy;
+    private final String executeType;
 
 
 
@@ -107,6 +109,8 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String path,
                                   String nexusGroupId,
                                   String nexusArtifactId,
+                                  String failStrategy,
+                                  String executeType,
                                   String nexusArtifactVersion) {
         this.f2cEndpoint = f2cEndpoint;
         this.f2cAccessKey = f2cAccessKey;
@@ -136,11 +140,12 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.nexusGroupId = nexusGroupId;
         this.nexusArtifactId = nexusArtifactId;
         this.nexusArtifactVersion = nexusArtifactVersion;
+        this.failStrategy = failStrategy;
+        this.executeType = executeType;
         this.nexusChecked = artifactType.equals(ArtifactType.NEXUS) ? true : false;
         this.artifactoryChecked = artifactType.equals(ArtifactType.ARTIFACTORY) ? true : false;
         this.ossChecked = artifactType.equals(ArtifactType.OSS) ? true : false;
         this.s3Checked = artifactType.equals(ArtifactType.S3) ? true : false;
-        ;
 
 
     }
@@ -516,44 +521,53 @@ public class F2CCodeDeployPublisher extends Publisher {
                 applicationDeployment.setClusterRoleId(this.clusterRoleId);
                 applicationDeployment.setCloudServerId(this.cloudServerId);
                 applicationDeployment.setApplicationVersionId(appVersion.getId());
-                applicationDeployment.setPolicy(this.deployPolicy);
+                applicationDeployment.setExecuteType(this.executeType);
+                applicationDeployment.setFailStrategy(this.failStrategy);
+//                applicationDeployment.setPolicy(this.deployPolicy);
                 applicationDeployment.setDescription("Jenkins 触发");
-                applicationDeploy = fit2cloudClient.createApplicationDeployment(applicationDeployment, this.workspaceId);
+                String result = fit2cloudClient.deployAppVersion(applicationDeployment, this.workspaceId);
+                log("部署结果:"+result);
+//                applicationDeploy = fit2cloudClient.createApplicationDeployment(applicationDeployment, this.workspaceId);
+                if (!StringUtils.equalsIgnoreCase("success", result)) {
+                    log("创建代码部署任务失败" + result);
+                    return false;
+                }
+                log("代码部署任务创建成功，请到devops平台查看任务执行结果");
             }
         } catch (Exception e) {
-            log("创建代码部署任务失败: " + e.getMessage());
+            log("创建代码部署任务异常: " + e.getMessage());
             return false;
         }
 
-        try {
-            int i = 0;
-            if (this.autoDeploy && this.waitForCompletion) {
-                log("执行代码部署...");
-                while (true) {
-                    Thread.sleep(1000 * pollingFreqSec);
-                    ApplicationDeployment applicationDeployment = fit2cloudClient.getApplicationDeployment(applicationDeploy.getId());
-                    if (applicationDeployment.getStatus().equalsIgnoreCase("success")
-                            || applicationDeployment.getStatus().equalsIgnoreCase("fail")) {
-                        log("部署完成！");
-                        if (applicationDeployment.getStatus().equalsIgnoreCase("success")) {
-                            log("部署结果: 成功");
-                        } else {
-                            throw new Exception("部署任务执行失败，具体结果请登录FIT2CLOUD控制台查看！");
-                        }
-                        break;
-                    } else {
-                        log("部署任务运行中...");
-                    }
-                }
-                if (pollingFreqSec * ++i > pollingTimeoutSec) {
-                    throw new Exception("部署超时,请查看FIT2CLOUD控制台！");
-                }
-            }
-        } catch (Exception e) {
-            log("执行代码部署失败: " + e.getMessage());
-            return false;
-        }
-
+//        try {
+//            int i = 0;
+//            if (this.autoDeploy && this.waitForCompletion) {
+//                log("执行代码部署...");
+//                while (true) {
+//                    Thread.sleep(1000 * pollingFreqSec);
+//                    ApplicationDeployment applicationDeployment = fit2cloudClient.getApplicationDeployment(applicationDeploy.getId());
+//                    if (applicationDeployment.getStatus().equalsIgnoreCase("success")
+//                            || applicationDeployment.getStatus().equalsIgnoreCase("fail")) {
+//                        log("部署完成！");
+//                        if (applicationDeployment.getStatus().equalsIgnoreCase("success")) {
+//                            log("部署结果: 成功");
+//                        } else {
+//                            throw new Exception("部署任务执行失败，具体结果请登录FIT2CLOUD控制台查看！");
+//                        }
+//                        break;
+//                    } else {
+//                        log("部署任务运行中...");
+//                    }
+//                }
+//                if (pollingFreqSec * ++i > pollingTimeoutSec) {
+//                    throw new Exception("部署超时,请查看FIT2CLOUD控制台！");
+//                }
+//            }
+//        } catch (Exception e) {
+//            log("执行代码部署失败: " + e.getMessage());
+//            return false;
+//        }
+//
 
         return true;
     }
@@ -740,33 +754,9 @@ public class F2CCodeDeployPublisher extends Publisher {
                 Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
                 List<ClusterDTO> list = fit2CloudClient.getClusters(workspaceId);
 
-                final Fit2cloudClient fit2cloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
-                ApplicationDTO applicationDTO = null;
-                List<ApplicationDTO> applications = fit2cloudClient.getApplications(workspaceId);
-                for (ApplicationDTO app : applications) {
-                    if (app.getId().equalsIgnoreCase(applicationId)) {
-                        app.setApplicationRepositoryId(applicationRepositoryId);
-                        applicationDTO = app;
-                    }
-                }
-
-                ApplicationRepositorySetting applicationRepositorySetting = null;
-                List<ApplicationRepositorySetting> repositorySettings = applicationDTO.getApplicationRepositorySettings();
-                for (ApplicationRepositorySetting appst : repositorySettings) {
-                    if (appst.getId().equalsIgnoreCase(repositorySettingId)) {
-                        applicationRepositorySetting = appst;
-                    }
-                }
-
-                String envValueId = applicationRepositorySetting.getEnvId();
-                String businessValueId = applicationDTO.getBusinessValueId();
-
                 if (list != null && list.size() > 0) {
                     for (ClusterDTO c : list) {
-                        if ((businessValueId == null || businessValueId.equalsIgnoreCase(c.getSystemValueId()))
-                                && (envValueId.equalsIgnoreCase("ALL") || envValueId.equalsIgnoreCase(c.getEnvValueId()))) {
-                            items.add(c.getName(), String.valueOf(c.getId()));
-                        }
+                        items.add(c.getName(), String.valueOf(c.getId()));
                     }
                 }
             } catch (Exception e) {
@@ -788,7 +778,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                 Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
                 List<ClusterRole> list = fit2CloudClient.getClusterRoles(workspaceId, clusterId);
                 if (list != null && list.size() > 0) {
-                    items.add("全部主机组", "ALL");
+//                    items.add("全部主机组", "ALL");
                     for (ClusterRole c : list) {
                         items.add(c.getName(), String.valueOf(c.getId()));
                     }
@@ -814,13 +804,27 @@ public class F2CCodeDeployPublisher extends Publisher {
                 if (list != null && list.size() > 0) {
                     items.add("全部主机", "ALL");
                     for (CloudServer c : list) {
-                        items.add(c.getInstanceName(), String.valueOf(c.getId()));
+                        items.add(c.getInstanceId(), String.valueOf(c.getId()));
                     }
                 }
             } catch (Exception e) {
 //            		e.printStackTrace();
 //                return FormValidation.error(e.getMessage());
             }
+            return items;
+        }
+
+        public ListBoxModel doFillExecuteTypeItems() {
+            ListBoxModel items = new ListBoxModel();
+            items.add("自动", "automatic");
+            items.add("手动", "manual");
+            return items;
+        }
+
+        public ListBoxModel doFillFailStrategyItems() {
+            ListBoxModel items = new ListBoxModel();
+            items.add("挂起", "automatic");
+            items.add("自动忽略", "ignore");
             return items;
         }
 

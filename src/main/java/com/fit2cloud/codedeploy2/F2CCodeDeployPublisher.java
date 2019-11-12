@@ -526,7 +526,6 @@ public class F2CCodeDeployPublisher extends Publisher {
 //                applicationDeployment.setPolicy(this.deployPolicy);
                 applicationDeployment.setDescription("Jenkins 触发");
                 String result = fit2cloudClient.deployAppVersion(applicationDeployment, this.workspaceId);
-                log("部署结果:"+result);
 //                applicationDeploy = fit2cloudClient.createApplicationDeployment(applicationDeployment, this.workspaceId);
                 if (!StringUtils.equalsIgnoreCase("success", result)) {
                     log("创建代码部署任务失败" + result);

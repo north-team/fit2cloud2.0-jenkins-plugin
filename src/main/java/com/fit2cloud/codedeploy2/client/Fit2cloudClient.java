@@ -205,8 +205,6 @@ public class Fit2cloudClient {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
         Result result = call(ApiUrlConstants.APPLICATION_VERSION_DEPLOY, RequestMethod.POST, applicationDeployment, headers);
-        Log log = LogUtils.getLog();
-        log.info("部署结果"+result.getData());
         return result.getData();
     }
 

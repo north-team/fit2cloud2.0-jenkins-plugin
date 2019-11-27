@@ -56,18 +56,27 @@
 
 
      <f:section title="CodeDeploy Zip文件设置">
-    		 <f:entry title="应用版本" field="applicationVersionName">
-    		        <f:textbox default="V1.0-${BUILD_NUMBER}" />
-    		 </f:entry>
-    		 <f:entry title="Include Files" field="includes">
-    		        <f:textarea default="**" />
-    		 </f:entry>
-    		 <f:entry title="Exclude Files" field="excludes">
-    		        <f:textarea default="*.class" />
-    		 </f:entry>
-    		 <f:entry title="appspec文件路径" field="appspecFilePath">
-    		        <f:textbox />
-    		  </f:entry>
+            <f:radioBlock title="指定zip包" name="customZip" value="true" checked="${instance.isCustomZip()}" inline="true">
+                <f:entry title="zip文件路径" field="zipFilePath">
+                     <f:textbox />
+                </f:entry>
+            </f:radioBlock>
+
+            <f:radioBlock title="制作zip包" name="customZip" value="false" checked="${!instance.isCustomZip()}" inline="true">
+                 <f:entry title="Include Files" field="includes">
+                        <f:textarea default="**" />
+                 </f:entry>
+                 <f:entry title="Exclude Files" field="excludes">
+                        <f:textarea default="*.class" />
+                 </f:entry>
+                 <f:entry title="appspec文件路径" field="appspecFilePath">
+                        <f:textbox />
+                  </f:entry>
+    		  </f:radioBlock>
+
+    		  <f:entry title="应用版本" field="applicationVersionName">
+                    <f:textbox default="V1.0-${BUILD_NUMBER}" />
+             </f:entry>
     		 <f:entry title="备注" field="description">
     		        <f:textbox />
     		 </f:entry>

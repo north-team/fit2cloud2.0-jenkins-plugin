@@ -72,6 +72,8 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String repositorySettingId;
     private final String artifactType;
 
+    private final boolean customZip;
+    private final String zipFilePath;
 
     private PrintStream logger;
 
@@ -111,7 +113,9 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String nexusArtifactId,
                                   String failStrategy,
                                   String executeType,
-                                  String nexusArtifactVersion) {
+                                  String nexusArtifactVersion,
+                                  boolean customZip,
+                                  String zipFilePath) {
         this.f2cEndpoint = f2cEndpoint;
         this.f2cAccessKey = f2cAccessKey;
         this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
@@ -146,7 +150,8 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.artifactoryChecked = artifactType.equals(ArtifactType.ARTIFACTORY) ? true : false;
         this.ossChecked = artifactType.equals(ArtifactType.OSS) ? true : false;
         this.s3Checked = artifactType.equals(ArtifactType.S3) ? true : false;
-
+        this.customZip = customZip;
+        this.zipFilePath = zipFilePath;
 
     }
 
@@ -302,8 +307,15 @@ public class F2CCodeDeployPublisher extends Publisher {
             String includesNew = Utils.replaceTokens(build, listener, this.includes);
             String excludesNew = Utils.replaceTokens(build, listener, this.excludes);
             String appspecFilePathNew = Utils.replaceTokens(build, listener, this.appspecFilePath);
-
-            zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
+            String zipFilePathNew = Utils.replaceTokens(build, listener, this.zipFilePath);
+            if(this.isCustomZip()){
+                if(StringUtils.isBlank(zipFilePathNew)) {
+                    log("zip文件路径不能为空！");
+                }
+                zipFile = new File(zipFilePathNew);
+            } else {
+                zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
+            }
             log("zipFileName: " + zipFileName);
 
             log("----->workspace" + workspace.toString());
@@ -1011,6 +1023,11 @@ public class F2CCodeDeployPublisher extends Publisher {
         return nexusArtifactVersion;
     }
 
+    public boolean isCustomZip() {
+        return customZip;
+    }
 
-
+    public String getZipFilePath() {
+        return zipFilePath;
+    }
 }

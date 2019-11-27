@@ -307,7 +307,7 @@ public class F2CCodeDeployPublisher extends Publisher {
             String includesNew = Utils.replaceTokens(build, listener, this.includes);
             String excludesNew = Utils.replaceTokens(build, listener, this.excludes);
             String appspecFilePathNew = Utils.replaceTokens(build, listener, this.appspecFilePath);
-            String zipFilePathNew = Utils.replaceTokens(build, listener, this.zipFilePath);
+            String zipFilePathNew = workspace.toString() + File.separator + Utils.replaceTokens(build, listener, this.zipFilePath);
             if(this.isCustomZip()){
                 if(StringUtils.isBlank(zipFilePathNew)) {
                     log("zip文件路径不能为空！");

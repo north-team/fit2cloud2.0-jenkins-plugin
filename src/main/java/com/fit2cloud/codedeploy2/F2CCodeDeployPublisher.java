@@ -29,6 +29,7 @@ import org.kohsuke.stapler.StaplerRequest;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class F2CCodeDeployPublisher extends Publisher {
     private static final String LOG_PREFIX = "[FIT2CLOUD 代码部署]";
@@ -307,22 +308,27 @@ public class F2CCodeDeployPublisher extends Publisher {
             String includesNew = Utils.replaceTokens(build, listener, this.includes);
             String excludesNew = Utils.replaceTokens(build, listener, this.excludes);
             String appspecFilePathNew = Utils.replaceTokens(build, listener, this.appspecFilePath);
-            String zipFilePathNew = workspace.toString() + File.separator + Utils.replaceTokens(build, listener, this.zipFilePath);
+            String zipFilePathNew = Utils.replaceTokens(build, listener, this.zipFilePath);
             if(this.isCustomZip()){
                 if(StringUtils.isBlank(zipFilePathNew)) {
                     log("zip文件路径不能为空！");
                 }
-                zipFile = new File(zipFilePathNew);
+
+                File tmpFile = new File("/tmp/" + UUID.randomUUID());
+                tmpFile.createNewFile();
+                FilePath fp = new FilePath(workspace, zipFilePathNew);
+                fp.copyTo(new FileOutputStream(tmpFile));
+                zipFile = tmpFile;
             } else {
                 zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
             }
             log("zipFileName: " + zipFileName);
 
             log("----->workspace" + workspace.toString());
-            String s1 = workspace.toString() + "/target/" + zipFileName.replaceAll("-" + zipFileName.split("-")[zipFileName.split("-").length - 1], ".zip");
-            String s2 = workspace.toString() + "/target/" + nexusArtifactId + ".zip";
-            log("----->s1" + s1);
-            log("----->s2" + s2);
+//            String s1 = workspace.toString() + "/target/" + zipFileName.replaceAll("-" + zipFileName.split("-")[zipFileName.split("-").length - 1], ".zip");
+//            String s2 = workspace.toString() + "/target/" + nexusArtifactId + ".zip";
+//            log("----->s1" + s1);
+//            log("----->s2" + s2);
 
             log("开始计算文件文件MD5值");
             fileMd5 = DigestUtils.md5Hex(new FileInputStream(zipFile));
@@ -457,9 +463,12 @@ public class F2CCodeDeployPublisher extends Publisher {
                     return false;
             }
 
-
+            if(this.isCustomZip()) {
+                zipFile.delete();
+            }
         } catch (Exception e) {
             log("生成ZIP包失败: " + e.getMessage());
+            e.printStackTrace();
             return false;
         } finally {
             if(zipFile != null && zipFile.exists()){

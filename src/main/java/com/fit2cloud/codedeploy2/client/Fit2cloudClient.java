@@ -99,7 +99,7 @@ public class Fit2cloudClient {
 
 
     public List<ApplicationDTO> getApplications(String workspaceId) {
-        long currentPage = 1L;
+        long currentPage = 0L;
         long pageSize = 100L;
         long pageCount;
         List<ApplicationDTO> applications = new ArrayList<ApplicationDTO>();
@@ -108,13 +108,13 @@ public class Fit2cloudClient {
 
 
         do {
+            currentPage++;
             Result result = call(ApiUrlConstants.APPLICATION_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, new HashMap<String, Object>(), headers);
             Page page = JSON.parseObject(result.getData(), Page.class);
             String listJson = JSON.toJSONString(page.getListObject());
             List<ApplicationDTO> apps = JSON.parseArray(listJson, ApplicationDTO.class);
             applications.addAll(apps);
             pageCount = page.getPageCount();
-            currentPage++;
         } while (pageCount > currentPage);
         return applications;
     }

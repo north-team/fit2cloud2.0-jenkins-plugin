@@ -1,11 +1,11 @@
 package com.fit2cloud.codedeploy2.client;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.aliyun.oss.common.utils.LogUtils;
+import com.fit2cloud.codedeploy2.CommonConstants;
 import com.fit2cloud.codedeploy2.client.model.*;
+import com.google.common.collect.Lists;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.logging.Log;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -21,7 +21,6 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.*;
 
 public class Fit2cloudClient {
@@ -98,7 +97,10 @@ public class Fit2cloudClient {
     }
 
 
-    public List<ApplicationDTO> getApplications(String workspaceId) {
+    public List<ApplicationDTO> getApplications(String workspaceId,String type) {
+        if(StringUtils.isEmpty(type)){
+            type = CommonConstants.OTHER;
+        }
         long currentPage = 0L;
         long pageSize = 100L;
         long pageCount;
@@ -106,10 +108,15 @@ public class Fit2cloudClient {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
 
-
+        HashMap<String, Object> params = new HashMap<>();
+        if(StringUtils.equalsIgnoreCase(type,CommonConstants.OTHER)){
+            params.put("applicationTypeList", Lists.newArrayList("other","win_iis"));
+        }else{
+            params.put("applicationTypeList", Lists.newArrayList("container","container_yaml"));
+        }
         do {
             currentPage++;
-            Result result = call(ApiUrlConstants.APPLICATION_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, new HashMap<String, Object>(), headers);
+            Result result = call(ApiUrlConstants.APPLICATION_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, params, headers);
             Page page = JSON.parseObject(result.getData(), Page.class);
             String listJson = JSON.toJSONString(page.getListObject());
             List<ApplicationDTO> apps = JSON.parseArray(listJson, ApplicationDTO.class);
@@ -194,6 +201,24 @@ public class Fit2cloudClient {
         return cloudServers;
     }
 
+    public List<ContainerResourceNamespace> getDeployNamespaces(String workspaceId) {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.NAMESPACE_LIST, RequestMethod.GET,null,headers);
+        return JSON.parseArray(result.getData(), ContainerResourceNamespace.class);
+    }
+    public List<ContainerCluster> getDeployContainerClusters(String workspaceId) {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.CONTAINER_CLUSTER_LIST, RequestMethod.GET,null,headers);
+        return JSON.parseArray(result.getData(), ContainerCluster.class);
+    }
+
+    public List<ContainerPods> getDeployPodsByContainerClusterId(String clusterId) {
+        Result result = call(ApiUrlConstants.CONTAINER_PODS_LIST, RequestMethod.POST,clusterId,null);
+        return JSON.parseArray(result.getData(), ContainerPods.class);
+    }
+
     public ApplicationDeployment createApplicationDeployment(ApplicationDeployment applicationDeployment, String workspaceId) {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
@@ -211,6 +236,11 @@ public class Fit2cloudClient {
     public ApplicationDeployment getApplicationDeployment(String applicationDeploymentId) {
         Result result = call(ApiUrlConstants.APPLICATION_SETTING_GET + "?applicationDeploymentId=" + applicationDeploymentId, RequestMethod.GET);
         return JSON.parseObject(result.getData(), ApplicationDeployment.class);
+    }
+
+    public List<ContainerResourceSecret> getDockerSecret(String namespaceId) {
+        Result result = call(ApiUrlConstants.DOCKER_SECRET_LIST, RequestMethod.POST,namespaceId,null);
+        return JSON.parseArray(result.getData(), ContainerResourceSecret.class);
     }
 
     public ApplicationVersion createApplicationVersion(ApplicationVersionDTO applicationVersion, String workspaceId) {
@@ -236,6 +266,11 @@ public class Fit2cloudClient {
         try {
             if (requestMethod == RequestMethod.GET) {
                 HttpGet httpGet = new HttpGet(url);
+                if (headers != null && headers.size() > 0) {
+                    for (String key : headers.keySet()) {
+                        httpGet.addHeader(key, headers.get(key));
+                    }
+                }
                 auth(httpGet);
                 HttpResponse response = httpClient.execute(httpGet);
 
@@ -250,7 +285,12 @@ public class Fit2cloudClient {
                     }
                 }
                 if (params != null) {
-                    StringEntity stringEntity = new StringEntity(JSON.toJSONString(params), "UTF-8");
+                    StringEntity stringEntity;
+                    if(params instanceof String){
+                        stringEntity = new StringEntity(params.toString(), "UTF-8");
+                    }else{
+                        stringEntity = new StringEntity(JSON.toJSONString(params), "UTF-8");
+                    }
                     httpPost.setEntity(stringEntity);
                 }
                 auth(httpPost);
@@ -292,6 +332,51 @@ public class Fit2cloudClient {
         return Base64.encodeBase64String(encrypted);
 
     }
+
+    public CheckVersionAndTagDTO checkVersionAndTasIsExist(String imageUrl, String containerApplicationId) {
+        Result result = call(ApiUrlConstants.CHECK_VERSION_TAG_EXIST  + "/" + containerApplicationId,
+                RequestMethod.POST,imageUrl ,null);
+        if(result.isSuccess()){
+            return JSON.parseObject(result.getData(), CheckVersionAndTagDTO.class);
+        }
+        throw new RuntimeException(result.getMessage());
+    }
+
+    public boolean syncHarborSingleTag(String tag, String containerApplicationId,String organizationId) {
+        Result result = call(ApiUrlConstants.SYNC_SINGLE_TAG + "/" + tag + "/" + containerApplicationId + "/" + organizationId,
+                RequestMethod.GET);
+        if(result.isSuccess()){
+            return true;
+        }
+        throw new RuntimeException(result.getMessage());
+    }
+
+    public String saveOrUpdateApplicationVersion(SaveOrUpdateApplicationVersionDto request) {
+        Result result = call(ApiUrlConstants.SAVE_OR_UPDATE_CONTAINER_APPLICATION_VERSION,
+                RequestMethod.POST,request,null);
+        if(!result.isSuccess()){
+            throw new RuntimeException(result.getMessage());
+        }
+        return result.getData();
+    }
+
+    public String createContainerTaskAndRun(String workspaceId, ContainerDeployDto params) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.DEPLOY_APPLICATION_VERSION, RequestMethod.POST, params , headers);
+        if(!result.isSuccess()){
+            throw new RuntimeException(result.getMessage());
+        }
+        return result.getData();
+    }
+
+    public String selectWorkJobStatus(String workFlowJobId) {
+        Result result = call(ApiUrlConstants.GET_DEPLOY_TASK_STATUS, RequestMethod.POST, workFlowJobId , null);
+        if(!result.isSuccess()){
+            throw new RuntimeException(result.getMessage());
+        }
+        return result.getData();
+    }
 }
 
 class ApiUrlConstants {
@@ -309,6 +394,15 @@ class ApiUrlConstants {
     public static final String APPLICATION_DEPLOY_SAVE = "devops/application/deploy/save";
     public static final String APPLICATION_VERSION_DEPLOY = "devops/application/version/deploy";
     public static final String APPLICATION_ENV_LIST = "devops/application/setting/env/list";
+    public static final String NAMESPACE_LIST = "devops/container/resource/k8s/Namespace/getResourceByWorkspaceId";
+    public static final String CONTAINER_CLUSTER_LIST = "devops/container/cluster/list";
+    public static final String CONTAINER_PODS_LIST = "devops/container/pods/getPodsByClusterId";
+    public static final String DOCKER_SECRET_LIST = "devops/container/resource/secret/getDockerSecret";
+    public static final String CHECK_VERSION_TAG_EXIST = "devops/application/version/checkVersionAndTasIsExist";
+    public static final String SYNC_SINGLE_TAG = "devops/repository/sync/single/tag";
+    public static final String SAVE_OR_UPDATE_CONTAINER_APPLICATION_VERSION = "devops/application/version/saveOrUpdateContainerApplicationVersion";
+    public static final String DEPLOY_APPLICATION_VERSION = "devops/application/version/container/deploy";
+    public static final String GET_DEPLOY_TASK_STATUS = "devops/workJob/selectStatusById";
 }
 
 enum RequestMethod {

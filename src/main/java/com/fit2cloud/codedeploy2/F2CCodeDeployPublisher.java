@@ -1196,7 +1196,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                     }
                 }
             } catch (Exception e) {
-            	e.printStackTrace();
+            	//e.printStackTrace();
             }
             return items;
         }

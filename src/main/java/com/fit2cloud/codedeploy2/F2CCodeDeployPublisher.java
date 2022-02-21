@@ -21,13 +21,11 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
 import org.apache.commons.codec.digest.DigestUtils;
-
 import org.apache.commons.lang3.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
-import javax.servlet.ServletException;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +80,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean otherChecked;
 
     private final boolean customZip;
+    private final boolean noCustomZip;
     private final String zipFilePath;
     private final String imageUrl;
     private final Integer containerPort;
@@ -139,7 +138,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String failStrategy,
                                   String executeType,
                                   String nexusArtifactVersion,
-                                  boolean customZip,
+                                  Boolean customZip,
                                   String zipFilePath,
                                   String imageUrl,
                                   Integer containerPort,
@@ -192,7 +191,8 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.s3Checked = StringUtils.equals(artifactType,ArtifactType.S3);
         this.containerChecked = StringUtils.equals(deployType,CommonConstants.CONTAINER);
         this.otherChecked = StringUtils.equals(deployType,CommonConstants.OTHER);
-        this.customZip = customZip;
+        this.customZip = customZip != null && customZip;
+        this.noCustomZip = customZip != null && !customZip;
         this.zipFilePath = zipFilePath;
         this.imageUrl = imageUrl;
         this.containerPort = containerPort;
@@ -1450,5 +1450,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 
     public String getSecret() {
         return secret;
+    }
+
+    public boolean isNoCustomZip() {
+        return noCustomZip;
     }
 }

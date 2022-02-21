@@ -103,7 +103,7 @@
                     </f:entry>
                 </f:radioBlock>
 
-                <f:radioBlock title="制作zip包" name="customZip" value="false" checked="${!instance.isCustomZip()}" inline="true">
+                <f:radioBlock title="制作zip包" name="customZip" value="false" checked="${instance.isNoCustomZip()}" inline="true">
                     <f:entry title="Include Files" field="includes">
                         <f:textarea default="**" />
                     </f:entry>

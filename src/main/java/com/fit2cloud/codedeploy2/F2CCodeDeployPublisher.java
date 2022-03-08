@@ -1088,7 +1088,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                 if (list != null && list.size() > 0) {
                     items.add("全部主机", "ALL");
                     for (CloudServer c : list) {
-                        items.add(c.getInstanceId(), String.valueOf(c.getId()));
+                        items.add(c.getInstanceName(), String.valueOf(c.getId()));
                     }
                 }
             } catch (Exception e) {

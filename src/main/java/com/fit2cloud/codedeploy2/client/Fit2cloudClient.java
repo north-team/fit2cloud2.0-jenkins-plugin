@@ -1,6 +1,7 @@
 package com.fit2cloud.codedeploy2.client;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.fit2cloud.codedeploy2.CommonConstants;
 import com.fit2cloud.codedeploy2.client.model.*;
 import com.google.common.collect.Lists;
@@ -53,22 +54,12 @@ public class Fit2cloudClient {
         }
     }
 
-
     public List<Workspace> getWorkspace() {
-        Result getUserResult = call(ApiUrlConstants.USER_INFO, RequestMethod.GET);
-        User user = JSON.parseObject(getUserResult.getData(), User.class);
-        Result userPermissinResult = call(ApiUrlConstants.USER_PERMISSION_LIST + "/" + user.getId(), RequestMethod.GET);
-        List<UserRoleDTO> userRoleDTOS = JSON.parseArray(userPermissinResult.getData(), UserRoleDTO.class);
-        List<Workspace> workspaces = new ArrayList<Workspace>();
-        for (UserRoleDTO userRoleDTO : userRoleDTOS) {
-            if (userRoleDTO.getParentId() != null) {
-                Workspace workspace = new Workspace();
-                workspace.setId(userRoleDTO.getId());
-                workspace.setName(userRoleDTO.getName());
-                workspaces.add(workspace);
-            }
+        Result result = call(ApiUrlConstants.GET_USER_WORKSPACE, RequestMethod.GET);
+        if(result.isSuccess() && StringUtils.isNotEmpty(result.getData())){
+            return JSONObject.parseArray(result.getData(),Workspace.class);
         }
-        return workspaces;
+        return Lists.newArrayList();
     }
 
 
@@ -403,6 +394,8 @@ class ApiUrlConstants {
     public static final String SAVE_OR_UPDATE_CONTAINER_APPLICATION_VERSION = "devops/application/version/saveOrUpdateContainerApplicationVersion";
     public static final String DEPLOY_APPLICATION_VERSION = "devops/application/version/container/deploy";
     public static final String GET_DEPLOY_TASK_STATUS = "devops/workJob/selectStatusById";
+    public static final String GET_USER_WORKSPACE = "management-center/user/selectWorkspaceByUserId";
+
 }
 
 enum RequestMethod {

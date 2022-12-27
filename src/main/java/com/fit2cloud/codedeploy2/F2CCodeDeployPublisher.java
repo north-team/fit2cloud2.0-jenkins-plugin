@@ -56,6 +56,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean waitForCompletion;
     private final Long pollingTimeoutSec;
     private final Long pollingFreqSec;
+    private final String nexusAddress;
     private final String nexusGroupId;
     private final String nexusArtifactId;
     private final String nexusArtifactVersion;
@@ -133,6 +134,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String objectPrefixAliyun,
                                   String objectPrefixAWS,
                                   String path,
+                                  String nexusAddress,
                                   String nexusGroupId,
                                   String nexusArtifactId,
                                   String failStrategy,
@@ -180,6 +182,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.objectPrefixAliyun = objectPrefixAliyun;
         this.objectPrefixAWS = objectPrefixAWS;
         this.path = path;
+        this.nexusAddress = nexusAddress;
         this.nexusGroupId = nexusGroupId;
         this.nexusArtifactId = nexusArtifactId;
         this.nexusArtifactVersion = nexusArtifactVersion;
@@ -343,7 +346,6 @@ public class F2CCodeDeployPublisher extends Publisher {
             for (ApplicationRepository re : repositories) {
                 if (app.getApplicationRepositoryId().equals(re.getId())) {
                     applicationRepository = re;
-
                 }
             }
 //            }
@@ -476,7 +478,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 
                     log("开始上传zip文件到nexus服务器");
                     try {
-                        newAddress = NexusUploader.upload(zipFile, applicationRepository.getAccessId(), applicationRepository.getAccessPassword(), applicationRepository.getRepository(),
+                        assert applicationRepository != null;
+                        String nexusAddressUrl = StringUtils.isNotBlank(nexusAddress) ? nexusAddress : applicationRepository.getRepository();
+                        newAddress = NexusUploader.upload(zipFile, applicationRepository.getAccessId(), applicationRepository.getAccessPassword(), nexusAddressUrl,
                                 nexusGroupIdNew, nexusArtifactIdNew, String.valueOf(builtNumber), "zip", nexusArtifactVersionNew);
                         log("上传zip包"+zipFile.getName());
                         log(newAddress);
@@ -544,65 +548,50 @@ public class F2CCodeDeployPublisher extends Publisher {
                 try {
                     log("删除 Zip 文件 " + zipFile.getAbsolutePath());
                     zipFile.delete();
-                }catch (Exception e){
+                }catch (Exception ignored){
                 }
             }
         }
 
 
-        ApplicationVersion appVersion = null;
-//        try {
+        ApplicationVersion appVersion;
         log("注册应用版本中...");
         String newAppVersion = null;
         try {
             newAppVersion = Utils.replaceTokens(build, listener, this.applicationVersionName);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
         ApplicationVersionDTO applicationVersion = new ApplicationVersionDTO();
         applicationVersion.setAppId(this.applicationId);
         applicationVersion.setName(newAppVersion);
-//            assert repSetting != null;
-//            applicationVersion.setEnvironmentValueId(repSetting.getEnvId());
         applicationVersion.setApplicationRepositoryId(applicationRepository.getId());
+        //应用版本中仍保存和应用中的制品库地址
+        newAddress = newAddress.replace(nexusAddress,applicationRepository.getRepository());
         applicationVersion.setResourcePath(newAddress);
-        applicationVersion.setDeployType("add");
+        applicationVersion.setDeployType(deployPolicy);
+        if (StringUtils.equalsIgnoreCase(deployType,"container")) {
+            applicationVersion.setDeployType(deployType);
+        }
         try {
             String zipName = newAddress.split("/")[newAddress.split("/").length-1];
             String fileName = workspace.toString() + "/target/" + zipName.replaceAll("-" + zipName.split("-")[zipName.split("-").length - 1], ".zip");
             log("文件名称: " + fileName);
             log("zip 文件名称: " + zipFile.getAbsolutePath());
 
-            // applicationVersion.setFileMd5(DigestUtils.md5Hex(new FileInputStream(new File(workspace.toString() + "/target/" + zipName.replaceAll("-"+zipName.split("-")[zipName.split("-").length-1],".zip")))));
-            // applicationVersion.setFileMd5(DigestUtils.md5Hex(new FileInputStream(new File(workspace.toString() + "/target/" + zipName.replaceAll("-"+zipName.split("-")[zipName.split("-").length-1],".zip")))));
             applicationVersion.setFileMd5(fileMd5);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
-//        File f = new File(workspace.toString() + newAddress.split("/")[newAddress.split("/").length-1]);
-//        if(f == null){
-//            log("f为空");
-//        }else{
-//            log("f不为空");
-//            log(f.getName());
-//            log(f.getPath());
-//        }
         log("应用id: " + applicationVersion.getAppId());
         log("版本名称: " + applicationVersion.getName());
         log("url: " + applicationVersion.getResourcePath());
         log("zip: " + zipFile);
         log("MD5: " + applicationVersion.getFileMd5());
         appVersion = fit2cloudClient.createApplicationVersion(applicationVersion, this.workspaceId);
-//        } catch (Exception e) {
-//            log("版本注册失败！ 原因：" + e.getMessage());
-//            return false;
-//        }
         log("注册版本成功！");
 
-        ApplicationDeployment applicationDeploy = null;
         try {
             if (this.autoDeploy) {
                 log("创建代码部署任务...");
@@ -627,37 +616,6 @@ public class F2CCodeDeployPublisher extends Publisher {
             log("创建代码部署任务异常: " + e.getMessage());
             return false;
         }
-
-//        try {
-//            int i = 0;
-//            if (this.autoDeploy && this.waitForCompletion) {
-//                log("执行代码部署...");
-//                while (true) {
-//                    Thread.sleep(1000 * pollingFreqSec);
-//                    ApplicationDeployment applicationDeployment = fit2cloudClient.getApplicationDeployment(applicationDeploy.getId());
-//                    if (applicationDeployment.getStatus().equalsIgnoreCase("success")
-//                            || applicationDeployment.getStatus().equalsIgnoreCase("fail")) {
-//                        log("部署完成！");
-//                        if (applicationDeployment.getStatus().equalsIgnoreCase("success")) {
-//                            log("部署结果: 成功");
-//                        } else {
-//                            throw new Exception("部署任务执行失败，具体结果请登录FIT2CLOUD控制台查看！");
-//                        }
-//                        break;
-//                    } else {
-//                        log("部署任务运行中...");
-//                    }
-//                }
-//                if (pollingFreqSec * ++i > pollingTimeoutSec) {
-//                    throw new Exception("部署超时,请查看FIT2CLOUD控制台！");
-//                }
-//            }
-//        } catch (Exception e) {
-//            log("执行代码部署失败: " + e.getMessage());
-//            return false;
-//        }
-//
-
         return true;
     }
 
@@ -1114,9 +1072,8 @@ public class F2CCodeDeployPublisher extends Publisher {
 
         public ListBoxModel doFillDeployPolicyItems() {
             ListBoxModel items = new ListBoxModel();
-            items.add("全部同时部署", "all");
-            items.add("半数分批部署", "harf");
-            items.add("单台依次部署", "sigle");
+            items.add("全量", "all");
+            items.add("增量", "add");
             return items;
         }
 

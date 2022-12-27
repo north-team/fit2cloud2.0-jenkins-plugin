@@ -62,12 +62,15 @@
                 </f:section>
             </f:section>
         </f:radioBlock>
-        <f:radioBlock title="非容器部署" name="deployType" value="other" inline="true" checked="${instance.otherChecked}">
+        <f:radioBlock title="非容器部署" name="deployType" value="standard" inline="true" checked="${instance.otherChecked}">
             <f:entry title="应用名称" field="applicationId">
                 <f:select />
             </f:entry>
             <f:section title="Zip文件上传设置">
                 <f:radioBlock title="上传至 Nexus" name="artifactType" value="Nexus" inline="true" checked="${instance.nexusChecked}">
+                    <f:entry title="Nexus Address" field="nexusAddress">
+                        <f:textbox default=""/>
+                    </f:entry>
                     <f:entry title="GroupId" field="nexusGroupId">
                         <f:textbox default="com.fit2cloud"/>
                     </f:entry>
@@ -140,9 +143,9 @@
                     <f:entry title="错误处理策略" field="failStrategy">
                         <f:select />
                     </f:entry>
-                    <!--<f:entry title="部署策略" field="deployPolicy">-->
-                    <!--<f:select />-->
-                    <!--</f:entry>-->
+                    <f:entry title="部署包类型" field="deployPolicy">
+                    <f:select />
+                    </f:entry>
 
                     <!--<f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="true" inline="true">-->
                     <!--<f:entry title="查询超时时间 (秒)" field="pollingTimeoutSec">-->

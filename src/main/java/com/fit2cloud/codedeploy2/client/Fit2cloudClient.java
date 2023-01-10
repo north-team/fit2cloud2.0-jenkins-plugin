@@ -56,8 +56,8 @@ public class Fit2cloudClient {
 
     public List<Workspace> getWorkspace() {
         Result result = call(ApiUrlConstants.GET_USER_WORKSPACE, RequestMethod.GET);
-        if(result.isSuccess() && StringUtils.isNotEmpty(result.getData())){
-            return JSONObject.parseArray(result.getData(),Workspace.class);
+        if (result.isSuccess() && StringUtils.isNotEmpty(result.getData())) {
+            return JSONObject.parseArray(result.getData(), Workspace.class);
         }
         return Lists.newArrayList();
     }
@@ -88,8 +88,8 @@ public class Fit2cloudClient {
     }
 
 
-    public List<ApplicationDTO> getApplications(String workspaceId,String type) {
-        if(StringUtils.isEmpty(type)){
+    public List<ApplicationDTO> getApplications(String workspaceId, String type) {
+        if (StringUtils.isEmpty(type)) {
             type = CommonConstants.OTHER;
         }
         long currentPage = 0L;
@@ -100,10 +100,10 @@ public class Fit2cloudClient {
         headers.put("sourceId", workspaceId);
 
         HashMap<String, Object> params = new HashMap<>();
-        if(StringUtils.equalsIgnoreCase(type,CommonConstants.OTHER)){
-            params.put("applicationTypeList", Lists.newArrayList("other","win_iis"));
-        }else{
-            params.put("applicationTypeList", Lists.newArrayList("container","container_yaml"));
+        if (StringUtils.equalsIgnoreCase(type, CommonConstants.OTHER)) {
+            params.put("applicationTypeList", Lists.newArrayList("other", "win_iis"));
+        } else {
+            params.put("applicationTypeList", Lists.newArrayList("container", "container_yaml"));
         }
         do {
             currentPage++;
@@ -117,6 +117,40 @@ public class Fit2cloudClient {
         return applications;
     }
 
+    public List<ContainerApplicationDTO> getContainerApplications(String workspaceId, String type) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        long currentPage = 0L;
+        long pageSize = 100L;
+        long pageCount;
+        List<ContainerApplicationDTO> applications = new ArrayList<>();
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+
+        HashMap<String, Object> params = new HashMap<>();
+        do {
+            currentPage++;
+            Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, params, headers);
+            Page page = JSON.parseObject(result.getData(), Page.class);
+            String listJson = JSON.toJSONString(page.getListObject());
+            List<ContainerApplicationDTO> apps = JSON.parseArray(listJson, ContainerApplicationDTO.class);
+            applications.addAll(apps);
+            pageCount = page.getPageCount();
+        } while (pageCount > currentPage);
+        return applications;
+    }
+
+    public List<JSONObject> getApplicationContainers(String containerAppId, String workspaceId, String type) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_DETAIL + "/" + containerAppId, RequestMethod.GET, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
 
     public List<ClusterDTO> getClusters(String workspaceId) {
         long currentPage = 1L;
@@ -195,18 +229,19 @@ public class Fit2cloudClient {
     public List<ContainerResourceNamespace> getDeployNamespaces(String workspaceId) {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
-        Result result = call(ApiUrlConstants.NAMESPACE_LIST, RequestMethod.GET,null,headers);
+        Result result = call(ApiUrlConstants.NAMESPACE_LIST, RequestMethod.GET, null, headers);
         return JSON.parseArray(result.getData(), ContainerResourceNamespace.class);
     }
+
     public List<ContainerCluster> getDeployContainerClusters(String workspaceId) {
         Map<String, String> headers = new HashMap<String, String>();
         headers.put("sourceId", workspaceId);
-        Result result = call(ApiUrlConstants.CONTAINER_CLUSTER_LIST, RequestMethod.GET,null,headers);
+        Result result = call(ApiUrlConstants.CONTAINER_CLUSTER_LIST, RequestMethod.GET, null, headers);
         return JSON.parseArray(result.getData(), ContainerCluster.class);
     }
 
     public List<ContainerPods> getDeployPodsByContainerClusterId(String clusterId) {
-        Result result = call(ApiUrlConstants.CONTAINER_PODS_LIST, RequestMethod.POST,clusterId,null);
+        Result result = call(ApiUrlConstants.CONTAINER_PODS_LIST, RequestMethod.POST, clusterId, null);
         return JSON.parseArray(result.getData(), ContainerPods.class);
     }
 
@@ -230,7 +265,7 @@ public class Fit2cloudClient {
     }
 
     public List<ContainerResourceSecret> getDockerSecret(String namespaceId) {
-        Result result = call(ApiUrlConstants.DOCKER_SECRET_LIST, RequestMethod.POST,namespaceId,null);
+        Result result = call(ApiUrlConstants.DOCKER_SECRET_LIST, RequestMethod.POST, namespaceId, null);
         return JSON.parseArray(result.getData(), ContainerResourceSecret.class);
     }
 
@@ -240,7 +275,7 @@ public class Fit2cloudClient {
         Result result = call(ApiUrlConstants.APPLICATION_VERSION_SAVE, RequestMethod.POST, applicationVersion, headers);
         try {
             JSON.parseObject(result.getData(), ApplicationVersion.class);
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new Fit2CloudException(result.getData());
         }
         return JSON.parseObject(result.getData(), ApplicationVersion.class);
@@ -277,9 +312,9 @@ public class Fit2cloudClient {
                 }
                 if (params != null) {
                     StringEntity stringEntity;
-                    if(params instanceof String){
+                    if (params instanceof String) {
                         stringEntity = new StringEntity(params.toString(), "UTF-8");
-                    }else{
+                    } else {
                         stringEntity = new StringEntity(JSON.toJSONString(params), "UTF-8");
                     }
                     httpPost.setEntity(stringEntity);
@@ -325,18 +360,18 @@ public class Fit2cloudClient {
     }
 
     public CheckVersionAndTagDTO checkVersionAndTasIsExist(String imageUrl, String containerApplicationId) {
-        Result result = call(ApiUrlConstants.CHECK_VERSION_TAG_EXIST  + "/" + containerApplicationId,
-                RequestMethod.POST,imageUrl ,null);
-        if(result.isSuccess()){
+        Result result = call(ApiUrlConstants.CHECK_VERSION_TAG_EXIST + "/" + containerApplicationId,
+                RequestMethod.POST, imageUrl, null);
+        if (result.isSuccess()) {
             return JSON.parseObject(result.getData(), CheckVersionAndTagDTO.class);
         }
         throw new RuntimeException(result.getMessage());
     }
 
-    public boolean syncHarborSingleTag(String tag, String containerApplicationId,String organizationId) {
+    public boolean syncHarborSingleTag(String tag, String containerApplicationId, String organizationId) {
         Result result = call(ApiUrlConstants.SYNC_SINGLE_TAG + "/" + tag + "/" + containerApplicationId + "/" + organizationId,
                 RequestMethod.GET);
-        if(result.isSuccess()){
+        if (result.isSuccess()) {
             return true;
         }
         throw new RuntimeException(result.getMessage());
@@ -344,8 +379,8 @@ public class Fit2cloudClient {
 
     public String saveOrUpdateApplicationVersion(SaveOrUpdateApplicationVersionDto request) {
         Result result = call(ApiUrlConstants.SAVE_OR_UPDATE_CONTAINER_APPLICATION_VERSION,
-                RequestMethod.POST,request,null);
-        if(!result.isSuccess()){
+                RequestMethod.POST, request, null);
+        if (!result.isSuccess()) {
             throw new RuntimeException(result.getMessage());
         }
         return result.getData();
@@ -354,16 +389,26 @@ public class Fit2cloudClient {
     public String createContainerTaskAndRun(String workspaceId, ContainerDeployDto params) {
         Map<String, String> headers = new HashMap<>();
         headers.put("sourceId", workspaceId);
-        Result result = call(ApiUrlConstants.DEPLOY_APPLICATION_VERSION, RequestMethod.POST, params , headers);
-        if(!result.isSuccess()){
+        Result result = call(ApiUrlConstants.DEPLOY_APPLICATION_VERSION, RequestMethod.POST, params, headers);
+        if (!result.isSuccess()) {
             throw new RuntimeException(result.getMessage());
         }
         return result.getData();
     }
 
     public String selectWorkJobStatus(String workFlowJobId) {
-        Result result = call(ApiUrlConstants.GET_DEPLOY_TASK_STATUS, RequestMethod.POST, workFlowJobId , null);
-        if(!result.isSuccess()){
+        Result result = call(ApiUrlConstants.GET_DEPLOY_TASK_STATUS, RequestMethod.POST, workFlowJobId, null);
+        if (!result.isSuccess()) {
+            throw new RuntimeException(result.getMessage());
+        }
+        return result.getData();
+    }
+
+    public String createContainerAppTaskAndRun(String workspaceId, ContainerAppDeployTmpDto params) {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_VERSION_SAVE, RequestMethod.POST, params, headers);
+        if (!result.isSuccess()) {
             throw new RuntimeException(result.getMessage());
         }
         return result.getData();
@@ -395,6 +440,10 @@ class ApiUrlConstants {
     public static final String DEPLOY_APPLICATION_VERSION = "devops/application/version/container/deploy";
     public static final String GET_DEPLOY_TASK_STATUS = "devops/workJob/selectStatusById";
     public static final String GET_USER_WORKSPACE = "management-center/user/selectWorkspaceByUserId";
+    public static final String CONTAINER_APPLICATION_LIST = "container-service/application/list";
+    public static final String CONTAINER_APPLICATION_DETAIL = "container-service/application/container";
+    public static final String CONTAINER_APPLICATION_VERSION_SAVE = "container-service/application/version/jenkins/save";
+
 
 }
 

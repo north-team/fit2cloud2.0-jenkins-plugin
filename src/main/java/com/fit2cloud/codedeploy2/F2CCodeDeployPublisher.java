@@ -255,7 +255,7 @@ public class F2CCodeDeployPublisher extends Publisher {
             try {
                 ContainerAppDeployTmpDto dto = new ContainerAppDeployTmpDto();
                 //1 检查应用部署参数
-                this.checkContainerAppDeployParams(fit2cloudClient, dto);
+                this.checkContainerAppDeployParams(fit2cloudClient, dto, build, listener);
                 //2 创建应用版本。
                 this.createContainerAppTaskAndRun(fit2cloudClient, dto);
                 return true;
@@ -758,7 +758,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     }
 
 
-    private void checkContainerAppDeployParams(final Fit2cloudClient fit2cloudClient, ContainerAppDeployTmpDto tmpDto) throws Exception {
+    private void checkContainerAppDeployParams(final Fit2cloudClient fit2cloudClient, ContainerAppDeployTmpDto tmpDto, AbstractBuild build, BuildListener listener) throws Exception {
         if (StringUtils.isBlank(this.workspaceId)) {
             throw new CodeDeployException("工作空间不能为空！");
         }
@@ -767,6 +767,13 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
         if (StringUtils.isBlank(this.containerAppVersion)) {
             throw new CodeDeployException("容器集群应用版本不能为空！");
+        }
+
+        String imageTag = "";
+        try {
+            imageTag = Utils.replaceTokens(build, listener, this.applicationImageTag);
+        } catch (Exception e) {
+            throw new CodeDeployException("转换镜像标签失败！：" + this.applicationImageTag);
         }
 
         boolean findWorkspace = false;
@@ -808,7 +815,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         image.put("repositoryId", applicationContainer.getRepositoryId());
         image.put("containerId", applicationContainer.getId());
 
-        image.put("imageTag", this.applicationImageTag);
+        image.put("imageTag", imageTag);
         List<com.alibaba.fastjson.JSONObject> images = new ArrayList<>();
         images.add(image);
         tmpDto.setImages(images);

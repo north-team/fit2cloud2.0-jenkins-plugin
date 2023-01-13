@@ -1,5 +1,6 @@
 package com.fit2cloud.codedeploy2;
 
+import com.alibaba.fastjson.JSON;
 import com.fit2cloud.codedeploy2.client.Fit2cloudClient;
 import com.fit2cloud.codedeploy2.client.model.*;
 import com.fit2cloud.codedeploy2.oss.AWSS3Client;
@@ -72,6 +73,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean containerChecked;
     private final boolean otherChecked;
     private final boolean containerAppChecked;
+    private final boolean containerAppAutoDeploy;
 
     private final boolean customZip;
     private final boolean noCustomZip;
@@ -96,6 +98,16 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String containerAppVersionDesc;
     private final String applicationImage;
     private final String applicationImageTag;
+
+    private final String containerAppRuntimeEnvId;
+    private String containerAppClusterId;
+    private String containerAppNamespaceId;
+    private String containerAppPv;
+    private String containerAppStorageClass;
+    private String containerAppStorageType;
+
+    private boolean checkContainerAppStoragePV;
+    private boolean checkContainerAppStorageClass;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -155,7 +167,12 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String containerAppVersion,
                                   String containerAppVersionDesc,
                                   String applicationImageTag,
-                                  String applicationImage) {
+                                  String applicationImage,
+                                  boolean containerAppAutoDeploy,
+                                  String containerAppRuntimeEnvId,
+                                  boolean checkContainerAppStoragePV,
+                                  boolean checkContainerAppStorageClass,
+                                  String containerAppStorageType) {
         this.f2cEndpoint = f2cEndpoint;
         this.f2cAccessKey = f2cAccessKey;
         this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
@@ -215,6 +232,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.containerAppVersionDesc = containerAppVersionDesc;
         this.applicationImage = applicationImage;
         this.applicationImageTag = applicationImageTag;
+        this.containerAppAutoDeploy = containerAppAutoDeploy;
+        this.containerAppRuntimeEnvId = containerAppRuntimeEnvId;
+        this.checkContainerAppStoragePV = StringUtils.equals(containerAppStorageType, CommonConstants.CONTAINER_PV);
+        this.checkContainerAppStorageClass = StringUtils.equals(containerAppStorageType, CommonConstants.CONTAINER_STORAGE_CLASS);
     }
 
     @Override
@@ -708,7 +729,8 @@ public class F2CCodeDeployPublisher extends Publisher {
     }
 
     private void createContainerAppTaskAndRun(Fit2cloudClient fit2cloudClient, ContainerAppDeployTmpDto dto) {
-        log("开始部署集群容器应用版本");
+        log("开始部署集群容器应用版本: " + JSON.toJSONString(dto));
+        log("工作空间ID: " + JSON.toJSONString(this.workspaceId));
         String workFlowId = fit2cloudClient.createContainerAppTaskAndRun(this.workspaceId, dto);
         dto.setWorkFlowJobId(workFlowId);
         log("部署集群容器应用版本结束");
@@ -770,8 +792,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         String imageTag = "";
+        String csAppVersion = "";
         try {
             imageTag = Utils.replaceTokens(build, listener, this.applicationImageTag);
+            csAppVersion = Utils.replaceTokens(build, listener, this.containerAppVersion);
         } catch (Exception e) {
             throw new CodeDeployException("转换镜像标签失败！：" + this.applicationImageTag);
         }
@@ -797,7 +821,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         ContainerApplicationDTO containerApplicationDTO = anyApp.get();
         tmpDto.setApplicationId(containerApplicationDTO.getId());
         //应用版本名称
-        tmpDto.setName(this.containerAppVersion);
+        tmpDto.setName(csAppVersion);
         tmpDto.setDescription(this.containerAppVersionDesc);
 
         log("查找对应的应用容器");
@@ -819,6 +843,59 @@ public class F2CCodeDeployPublisher extends Publisher {
         List<com.alibaba.fastjson.JSONObject> images = new ArrayList<>();
         images.add(image);
         tmpDto.setImages(images);
+
+        if (!this.containerAppAutoDeploy) {
+            return;
+        }
+        if (StringUtils.isBlank(this.containerAppRuntimeEnvId)) {
+            throw new CodeDeployException("容器集群运行环境不能为空！");
+        }
+        if (StringUtils.isBlank(this.containerAppClusterId)) {
+            throw new CodeDeployException("容器集群不能为空！");
+        }
+        if (StringUtils.isBlank(this.containerAppNamespaceId)) {
+            throw new CodeDeployException("容器集群命名空间不能为空！");
+        }
+
+        tmpDto.setAutoDeploy(this.containerAppAutoDeploy);
+        tmpDto.setRuntimeEnvId(this.containerAppRuntimeEnvId);
+        tmpDto.setClusterId(this.containerAppClusterId);
+        tmpDto.setNamespaceId(this.containerAppNamespaceId);
+
+        boolean appIsExistsPVC = true;
+        try {
+            List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+            Fit2cloudClient fit2CloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
+            appIsExistsPVC = fit2CloudClient.getAppIsExistsPVC(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
+
+        } catch (Exception e) {
+            // e.printStackTrace();
+            // return FormValidation.error(e.getMessage());
+        }
+
+        //容器是否存在PVC
+        if (!appIsExistsPVC) {
+            return;
+        }
+        log("pv : " + this.checkContainerAppStoragePV);
+        log("storageClass : " + this.checkContainerAppStorageClass);
+
+        log("containerAppPv : " + this.containerAppPv);
+        log("containerAppStorageClass : " + this.containerAppStorageClass);
+
+        if (this.checkContainerAppStoragePV) {
+            tmpDto.setStorageType("pv");
+            tmpDto.setStorageName(this.containerAppPv);
+        }
+
+        if (this.checkContainerAppStorageClass) {
+            tmpDto.setStorageType("storageClass");
+            tmpDto.setStorageName(this.containerAppStorageClass);
+        }
+
+        if (StringUtils.isBlank(tmpDto.getStorageType()) || StringUtils.isBlank(tmpDto.getStorageName())) {
+            throw new CodeDeployException("存储不能为空，请检查配置参数！");
+        }
     }
 
     public List<ApplicationContainer> getApplicationContainers(String f2cAccessKey,
@@ -1124,6 +1201,134 @@ public class F2CCodeDeployPublisher extends Publisher {
             } catch (Exception e) {
 //            		e.printStackTrace();
 //                return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
+
+        public ListBoxModel doFillContainerAppRuntimeEnvIdItems(@QueryParameter String f2cAccessKey,
+                                                              @QueryParameter String f2cSecretKey,
+                                                              @QueryParameter String f2cEndpoint,
+                                                              @QueryParameter String workspaceId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                if (workspaceId != null && !workspaceId.equals("")) {
+                    list = fit2CloudClient.getContainerAppRuntimeEnvs(workspaceId, CommonConstants.CONTAINER);
+                }
+                if (list != null && list.size() > 0) {
+                    for (com.alibaba.fastjson.JSONObject c : list) {
+                        items.add(c.getString("name"), c.getString("id"));
+                    }
+                }
+            } catch (Exception e) {
+                // e.printStackTrace();
+                // return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
+
+
+        public ListBoxModel doFillContainerAppClusterIdItems(@QueryParameter String f2cAccessKey,
+                                                              @QueryParameter String f2cSecretKey,
+                                                              @QueryParameter String f2cEndpoint,
+                                                              @QueryParameter String workspaceId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                if (workspaceId != null && !workspaceId.equals("")) {
+                    list = fit2CloudClient.getContainerAppClusters(workspaceId, CommonConstants.CONTAINER);
+                }
+                if (list != null && list.size() > 0) {
+                    for (com.alibaba.fastjson.JSONObject c : list) {
+                        items.add(c.getString("name"), c.getString("id"));
+                    }
+                }
+            } catch (Exception e) {
+                // e.printStackTrace();
+                // return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
+        public ListBoxModel doFillContainerAppNamespaceIdItems(@QueryParameter String f2cAccessKey,
+                                                              @QueryParameter String f2cSecretKey,
+                                                              @QueryParameter String f2cEndpoint,
+                                                              @QueryParameter String workspaceId,
+                                                              @QueryParameter String containerAppClusterId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                if (StringUtils.isNotBlank(workspaceId) && StringUtils.isNotBlank(containerAppClusterId)) {
+                    list = fit2CloudClient.getContainerAppNamespaces(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
+                }
+                if (list != null && list.size() > 0) {
+                    for (com.alibaba.fastjson.JSONObject c : list) {
+                        items.add(StringUtils.defaultString(c.getString("displayName"), c.getString("name")), c.getString("id"));
+                    }
+                }
+            } catch (Exception e) {
+                // e.printStackTrace();
+                // return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
+        public ListBoxModel doFillContainerAppPvItems(@QueryParameter String f2cAccessKey,
+                                                               @QueryParameter String f2cSecretKey,
+                                                               @QueryParameter String f2cEndpoint,
+                                                               @QueryParameter String workspaceId,
+                                                               @QueryParameter String containerAppClusterId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                if (StringUtils.isNotBlank(workspaceId) && StringUtils.isNotBlank(containerAppClusterId)) {
+                    list = fit2CloudClient.getContainerAppPVs(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
+                }
+                if (list != null && list.size() > 0) {
+                    for (com.alibaba.fastjson.JSONObject c : list) {
+                        items.add(c.getString("name"), c.getString("name"));
+                    }
+                }
+            } catch (Exception e) {
+                // e.printStackTrace();
+                // return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
+        public ListBoxModel doFillContainerAppStorageTypeItems() {
+            ListBoxModel items = new ListBoxModel();
+            items.add("Persistent Volume", "pv");
+            items.add("Storage Class", "storageClass");
+            return items;
+        }
+
+        public ListBoxModel doFillContainerAppStorageClassItems(@QueryParameter String f2cAccessKey,
+                                                      @QueryParameter String f2cSecretKey,
+                                                      @QueryParameter String f2cEndpoint,
+                                                      @QueryParameter String workspaceId,
+                                                      @QueryParameter String containerAppClusterId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                if (StringUtils.isNotBlank(workspaceId) && StringUtils.isNotBlank(containerAppClusterId)) {
+                    list = fit2CloudClient.getContainerAppStorageClassAll(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
+                }
+                if (list != null && list.size() > 0) {
+                    for (com.alibaba.fastjson.JSONObject c : list) {
+                        items.add(c.getString("name"), c.getString("name"));
+                    }
+                }
+            } catch (Exception e) {
+                // e.printStackTrace();
+                // return FormValidation.error(e.getMessage());
             }
             return items;
         }
@@ -1641,5 +1846,76 @@ public class F2CCodeDeployPublisher extends Publisher {
 
     public String getApplicationImage() {
         return applicationImage;
+    }
+
+    public boolean isContainerAppAutoDeploy() {
+        return containerAppAutoDeploy;
+    }
+
+    public String getContainerAppRuntimeEnvId() {
+        return containerAppRuntimeEnvId;
+    }
+
+    public String getContainerAppClusterId() {
+        return containerAppClusterId;
+    }
+
+    public String getContainerAppNamespaceId() {
+        return containerAppNamespaceId;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppClusterId(String containerAppClusterId) {
+        this.containerAppClusterId = containerAppClusterId;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppNamespaceId(String containerAppNamespaceId) {
+        this.containerAppNamespaceId = containerAppNamespaceId;
+    }
+
+    public String getContainerAppPv() {
+        return containerAppPv;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppPv(String containerAppPv) {
+        this.containerAppPv = containerAppPv;
+    }
+
+    public String getContainerAppStorageClass() {
+        return containerAppStorageClass;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppStorageClass(String containerAppStorageClass) {
+        this.containerAppStorageClass = containerAppStorageClass;
+    }
+
+    public boolean isCheckContainerAppStoragePV() {
+        return checkContainerAppStoragePV;
+    }
+
+    public boolean isCheckContainerAppStorageClass() {
+        return checkContainerAppStorageClass;
+    }
+
+    public String getContainerAppStorageType() {
+        return containerAppStorageType;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppStorageType(String containerAppStorageType) {
+        this.containerAppStorageType = containerAppStorageType;
+    }
+
+    @DataBoundSetter
+    public void setCheckContainerAppStoragePV(boolean checkContainerAppStoragePV) {
+        this.checkContainerAppStoragePV = checkContainerAppStoragePV;
+    }
+
+    @DataBoundSetter
+    public void setCheckContainerAppStorageClass(boolean checkContainerAppStorageClass) {
+        this.checkContainerAppStorageClass = checkContainerAppStorageClass;
     }
 }

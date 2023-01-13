@@ -152,6 +152,76 @@ public class Fit2cloudClient {
         return JSON.parseArray(result.getData(), JSONObject.class);
     }
 
+    public List<JSONObject> getContainerAppRuntimeEnvs(String workspaceId, String type) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_RUN_ENV_LIST , RequestMethod.GET, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
+
+    public List<JSONObject> getContainerAppClusters(String workspaceId, String type) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_CLUSTER_LIST , RequestMethod.GET, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
+
+    public List<JSONObject> getContainerAppNamespaces(String workspaceId, String type, String clusterId) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_NAMESPACE_LIST + "/" + clusterId, RequestMethod.GET, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
+
+    public List<JSONObject> getContainerAppPVs(String workspaceId, String type, String clusterId) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        params.put("status", "Success");
+        params.put("clusterId", clusterId);
+        params.put("storageClass", "slow");
+        Result result = call(ApiUrlConstants.CONTAINER_PV_LIST, RequestMethod.POST, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
+
+    public List<JSONObject> getContainerAppStorageClassAll(String workspaceId, String type, String clusterId) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        params.put("clusterId", clusterId);
+        Result result = call(ApiUrlConstants.CONTAINER_STORAGE_CLASS_LIST, RequestMethod.POST, params, headers);
+        return JSON.parseArray(result.getData(), JSONObject.class);
+    }
+
+    public boolean getAppIsExistsPVC(String workspaceId, String type, String clusterId) {
+        if (StringUtils.isEmpty(type)) {
+            type = CommonConstants.CONTAINER_APP;
+        }
+        Map<String, String> headers = new HashMap<>();
+        headers.put("sourceId", workspaceId);
+        HashMap<String, Object> params = new HashMap<>();
+        Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_EXISTS_PVC + "/" + clusterId, RequestMethod.GET, params, headers);
+        return Boolean.getBoolean(result.getData());
+    }
+
     public List<ClusterDTO> getClusters(String workspaceId) {
         long currentPage = 1L;
         long pageSize = 100L;
@@ -442,7 +512,13 @@ class ApiUrlConstants {
     public static final String GET_USER_WORKSPACE = "management-center/user/selectWorkspaceByUserId";
     public static final String CONTAINER_APPLICATION_LIST = "container-service/application/list";
     public static final String CONTAINER_APPLICATION_DETAIL = "container-service/application/container";
+    public static final String CONTAINER_APPLICATION_EXISTS_PVC = "container-service/application/container/existsPVC";
     public static final String CONTAINER_APPLICATION_VERSION_SAVE = "container-service/application/version/jenkins/save";
+    public static final String CONTAINER_APPLICATION_RUN_ENV_LIST = "container-service/runtime/env/listAll";
+    public static final String CONTAINER_APPLICATION_CLUSTER_LIST = "container-service/cluster/list/all/false";
+    public static final String CONTAINER_APPLICATION_NAMESPACE_LIST = "container-service/namespace/listByCluster";
+    public static final String CONTAINER_PV_LIST = "container-service/pv/list/all";
+    public static final String CONTAINER_STORAGE_CLASS_LIST = "container-service/storageClass/list/all";
 
 
 }

@@ -14,4 +14,7 @@ public interface CommonConstants {
     String FAILED = "Failed";
     String OVERTIME = "Overtime";
 
+    String CONTAINER_PV = "pv";
+    String CONTAINER_STORAGE_CLASS = "storageClass";
+
 }

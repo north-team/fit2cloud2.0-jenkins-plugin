@@ -18,6 +18,60 @@ public class ContainerAppDeployTmpDto {
 
     private String workFlowJobId;
 
+    private String runtimeEnvId;
+    private String clusterId;
+    private String namespaceId;
+    private boolean autoDeploy;
+    private String storageName;
+    private String storageType;
+
+    public String getStorageName() {
+        return storageName;
+    }
+
+    public void setStorageName(String storageName) {
+        this.storageName = storageName;
+    }
+
+    public String getStorageType() {
+        return storageType;
+    }
+
+    public void setStorageType(String storageType) {
+        this.storageType = storageType;
+    }
+
+    public boolean isAutoDeploy() {
+        return autoDeploy;
+    }
+
+    public void setAutoDeploy(boolean autoDeploy) {
+        this.autoDeploy = autoDeploy;
+    }
+
+    public String getRuntimeEnvId() {
+        return runtimeEnvId;
+    }
+
+    public void setRuntimeEnvId(String runtimeEnvId) {
+        this.runtimeEnvId = runtimeEnvId;
+    }
+
+    public String getClusterId() {
+        return clusterId;
+    }
+
+    public void setClusterId(String clusterId) {
+        this.clusterId = clusterId;
+    }
+
+    public String getNamespaceId() {
+        return namespaceId;
+    }
+
+    public void setNamespaceId(String namespaceId) {
+        this.namespaceId = namespaceId;
+    }
 
     public String getOrganizationId() {
         return organizationId;

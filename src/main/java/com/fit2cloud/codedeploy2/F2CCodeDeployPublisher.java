@@ -729,8 +729,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     }
 
     private void createContainerAppTaskAndRun(Fit2cloudClient fit2cloudClient, ContainerAppDeployTmpDto dto) {
-        log("开始部署集群容器应用版本: " + JSON.toJSONString(dto));
-        log("工作空间ID: " + JSON.toJSONString(this.workspaceId));
+        log("开始部署集群容器应用版本");
         String workFlowId = fit2cloudClient.createContainerAppTaskAndRun(this.workspaceId, dto);
         dto.setWorkFlowJobId(workFlowId);
         log("部署集群容器应用版本结束");

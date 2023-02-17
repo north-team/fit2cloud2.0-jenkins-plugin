@@ -876,11 +876,6 @@ public class F2CCodeDeployPublisher extends Publisher {
         if (!appIsExistsPVC) {
             return;
         }
-        log("pv : " + this.checkContainerAppStoragePV);
-        log("storageClass : " + this.checkContainerAppStorageClass);
-
-        log("containerAppPv : " + this.containerAppPv);
-        log("containerAppStorageClass : " + this.containerAppStorageClass);
 
         if (this.checkContainerAppStoragePV) {
             tmpDto.setStorageType("pv");
@@ -1267,7 +1262,11 @@ public class F2CCodeDeployPublisher extends Publisher {
                 }
                 if (list != null && list.size() > 0) {
                     for (com.alibaba.fastjson.JSONObject c : list) {
-                        items.add(StringUtils.defaultString(c.getString("displayName"), c.getString("name")), c.getString("id"));
+                        StringBuilder name = new StringBuilder(c.getString("name"));
+                        if (StringUtils.isNotBlank(c.getString("alias"))) {
+                            name.append(" - ").append(c.getString("alias"));
+                        }
+                        items.add(name.toString(), c.getString("id"));
                     }
                 }
             } catch (Exception e) {

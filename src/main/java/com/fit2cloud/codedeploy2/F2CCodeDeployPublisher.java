@@ -846,9 +846,9 @@ public class F2CCodeDeployPublisher extends Publisher {
         if (!this.containerAppAutoDeploy) {
             return;
         }
-        if (StringUtils.isBlank(this.containerAppRuntimeEnvId)) {
-            throw new CodeDeployException("容器集群运行环境不能为空！");
-        }
+        // if (StringUtils.isBlank(this.containerAppRuntimeEnvId)) {
+        //     throw new CodeDeployException("容器集群运行环境不能为空！");
+        // }
         if (StringUtils.isBlank(this.containerAppClusterId)) {
             throw new CodeDeployException("容器集群不能为空！");
         }
@@ -857,39 +857,39 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         tmpDto.setAutoDeploy(this.containerAppAutoDeploy);
-        tmpDto.setRuntimeEnvId(this.containerAppRuntimeEnvId);
+        // tmpDto.setRuntimeEnvId(this.containerAppRuntimeEnvId);
         tmpDto.setClusterId(this.containerAppClusterId);
         tmpDto.setNamespaceId(this.containerAppNamespaceId);
 
-        boolean appIsExistsPVC = true;
-        try {
-            List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
-            Fit2cloudClient fit2CloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
-            appIsExistsPVC = fit2CloudClient.getAppIsExistsPVC(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
-
-        } catch (Exception e) {
+        // boolean appIsExistsPVC = true;
+        // try {
+        //     List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
+        //     Fit2cloudClient fit2CloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
+        //     appIsExistsPVC = fit2CloudClient.getAppIsExistsPVC(workspaceId, CommonConstants.CONTAINER, containerAppClusterId);
+        //
+        // } catch (Exception e) {
             // e.printStackTrace();
             // return FormValidation.error(e.getMessage());
-        }
+        // }
 
         //容器是否存在PVC
-        if (!appIsExistsPVC) {
-            return;
-        }
+        // if (!appIsExistsPVC) {
+        //     return;
+        // }
 
-        if (this.checkContainerAppStoragePV) {
-            tmpDto.setStorageType("pv");
-            tmpDto.setStorageName(this.containerAppPv);
-        }
+        // if (this.checkContainerAppStoragePV) {
+        //     tmpDto.setStorageType("pv");
+        //     tmpDto.setStorageName(this.containerAppPv);
+        // }
 
-        if (this.checkContainerAppStorageClass) {
-            tmpDto.setStorageType("storageClass");
-            tmpDto.setStorageName(this.containerAppStorageClass);
-        }
+        // if (this.checkContainerAppStorageClass) {
+        //     tmpDto.setStorageType("storageClass");
+        //     tmpDto.setStorageName(this.containerAppStorageClass);
+        // }
 
-        if (StringUtils.isBlank(tmpDto.getStorageType()) || StringUtils.isBlank(tmpDto.getStorageName())) {
-            throw new CodeDeployException("存储不能为空，请检查配置参数！");
-        }
+        // if (StringUtils.isBlank(tmpDto.getStorageType()) || StringUtils.isBlank(tmpDto.getStorageName())) {
+        //     throw new CodeDeployException("存储不能为空，请检查配置参数！");
+        // }
     }
 
     public List<ApplicationContainer> getApplicationContainers(String f2cAccessKey,

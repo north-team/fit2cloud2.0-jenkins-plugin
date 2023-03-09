@@ -161,6 +161,12 @@
         </f:radioBlock>
         <f:radioBlock title="集群应用部署" name="deployType" value="containerApp" inline="true" checked="${instance.containerAppChecked}">
             <f:section title="应用设置">
+                <f:entry title="集群" field="containerAppClusterId">
+                    <f:select />
+                </f:entry>
+                <f:entry title="命名空间" field="containerAppNamespaceId">
+                    <f:select />
+                </f:entry>
                 <f:entry title="应用名称" field="containerAppId">
                     <f:select />
                 </f:entry>
@@ -170,34 +176,28 @@
                 <f:entry title="应用版本描述" field="containerAppVersionDesc">
                     <f:textbox/>
                 </f:entry>
-                <f:entry title="应用镜像" field="applicationImage">
+                <f:entry title="应用容器名称" field="applicationImage">
                     <f:select/>
                 </f:entry>
-                <f:entry title="应用镜像版本" field="applicationImageTag">
+                <f:entry title="容器镜像版本" field="applicationImageTag">
                     <f:textbox/>
                 </f:entry>
             </f:section>
             <f:section title="部署设置">
                 <f:optionalBlock title="触发自动部署" field="containerAppAutoDeploy" checked="${instance.containerAppAutoDeploy}" inline="true">
-                    <f:entry title="运行环境" field="containerAppRuntimeEnvId">
-                        <f:select />
-                    </f:entry>
-                    <f:entry title="集群" field="containerAppClusterId">
-                        <f:select />
-                    </f:entry>
-                    <f:entry title="命名空间" field="containerAppNamespaceId">
-                        <f:select />
-                    </f:entry>
-                    <f:radioBlock title="Persistent Volume" name="containerAppStorageType" value="pv" inline="true" checked="${instance.checkContainerAppStoragePV}">
-                        <f:entry field="containerAppPv">
-                            <f:select />
-                        </f:entry>
-                    </f:radioBlock>
-                    <f:radioBlock title="Storage Class" name="containerAppStorageType" value="storageClass" inline="true" checked="${instance.checkContainerAppStorageClass}">
-                        <f:entry field="containerAppStorageClass">
-                            <f:select />
-                        </f:entry>
-                    </f:radioBlock>
+                    <!--<f:entry title="运行环境" field="containerAppRuntimeEnvId">-->
+                    <!--    <f:select />-->
+                    <!--</f:entry>-->
+                    <!--<f:radioBlock title="Persistent Volume" name="containerAppStorageType" value="pv" inline="true" checked="${instance.checkContainerAppStoragePV}">-->
+                    <!--    <f:entry field="containerAppPv">-->
+                    <!--        <f:select />-->
+                    <!--    </f:entry>-->
+                    <!--</f:radioBlock>-->
+                    <!--<f:radioBlock title="Storage Class" name="containerAppStorageType" value="storageClass" inline="true" checked="${instance.checkContainerAppStorageClass}">-->
+                    <!--    <f:entry field="containerAppStorageClass">-->
+                    <!--        <f:select />-->
+                    <!--    </f:entry>-->
+                    <!--</f:radioBlock>-->
                 </f:optionalBlock>
             </f:section>
         </f:radioBlock>

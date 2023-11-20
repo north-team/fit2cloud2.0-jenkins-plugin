@@ -251,6 +251,15 @@ public class Fit2cloudClient {
         return applicationSettings;
     }
 
+    public List<TaskType> getTaskTypes(String workspaceId) {
+        List<TaskType> taskTypes = new ArrayList<>();
+        Result result = call(ApiUrlConstants.GET_DEPLOY_TASK_TYPE + workspaceId, RequestMethod.GET);
+        if (result.isSuccess()) {
+            taskTypes = JSON.parseArray(result.getData(), TaskType.class);
+        }
+        return taskTypes;
+    }
+
 
     public List<ClusterRole> getClusterRoles(String workspaceId, String clusterId) {
         long currentPage = 1L;
@@ -496,6 +505,7 @@ class ApiUrlConstants {
     public static final String CLUSTER_LIST = "devops/cluster/list";
     public static final String CLUSTER_ROLE_LIST = "devops/clusterRole/list";
     public static final String SERVER_LIST = "devops/server/list";
+    public static final String GET_DEPLOY_TASK_TYPE = "devops/task/type/api/list/";
     public static final String APPLICATION_VERSION_SAVE = "devops/application/version/save-version";
     public static final String APPLICATION_DEPLOY_SAVE = "devops/application/deploy/save";
     public static final String APPLICATION_VERSION_DEPLOY = "devops/application/version/deploy";

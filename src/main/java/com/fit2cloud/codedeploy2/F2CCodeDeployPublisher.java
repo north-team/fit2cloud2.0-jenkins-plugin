@@ -42,6 +42,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String clusterRoleId;
     private final String cloudServerId;
     private final String deployPolicy;
+    private final String taskTypeId;
     private final String applicationVersionName;
     private final boolean autoDeploy;
     private final String includes;
@@ -123,6 +124,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String applicationSettingId,
                                   String cloudServerId,
                                   String deployPolicy,
+                                  String taskTypeId,
                                   String applicationVersionName,
                                   boolean waitForCompletion,
                                   boolean nexusChecked,
@@ -189,6 +191,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.applicationRepositoryId = applicationRepositoryId;
         this.applicationVersionName = applicationVersionName;
         this.deployPolicy = deployPolicy;
+        this.taskTypeId = taskTypeId;
         this.autoDeploy = autoDeploy;
         this.includes = includes;
         this.excludes = excludes;
@@ -642,10 +645,11 @@ public class F2CCodeDeployPublisher extends Publisher {
                 applicationDeployment.setApplicationVersionId(appVersion.getId());
                 applicationDeployment.setExecuteType(this.executeType);
                 applicationDeployment.setFailStrategy(this.failStrategy);
-//                applicationDeployment.setPolicy(this.deployPolicy);
+                // applicationDeployment.setPolicy(this.deployPolicy);
+                applicationDeployment.setTaskTypeId(this.taskTypeId);
                 applicationDeployment.setDescription("Jenkins 触发");
                 String result = fit2cloudClient.deployAppVersion(applicationDeployment, this.workspaceId);
-//                applicationDeploy = fit2cloudClient.createApplicationDeployment(applicationDeployment, this.workspaceId);
+                // applicationDeploy = fit2cloudClient.createApplicationDeployment(applicationDeployment, this.workspaceId);
                 if (!StringUtils.equalsIgnoreCase("success", result)) {
                     log("创建代码部署任务失败" + result);
                     return false;
@@ -1412,6 +1416,32 @@ public class F2CCodeDeployPublisher extends Publisher {
             return items;
         }
 
+        public ListBoxModel doFillTaskTypeIdItems(@QueryParameter String f2cAccessKey,
+                                                 @QueryParameter String f2cSecretKey,
+                                                 @QueryParameter String f2cEndpoint,
+                                                 @QueryParameter String workspaceId,
+                                                 @QueryParameter String applicationId,
+                                                 @QueryParameter String repositorySettingId,
+                                                 @QueryParameter String applicationRepositoryId) {
+            ListBoxModel items = new ListBoxModel();
+            items.add("请选择任务类型", "");
+
+            try {
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                List<TaskType> list = fit2CloudClient.getTaskTypes(workspaceId);
+
+                if (list != null && list.size() > 0) {
+                    for (TaskType c : list) {
+                        items.add(c.getName(), String.valueOf(c.getId()));
+                    }
+                }
+            } catch (Exception e) {
+//            		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
         public ListBoxModel doFillClusterRoleIdItems(@QueryParameter String f2cAccessKey,
                                                      @QueryParameter String f2cSecretKey,
                                                      @QueryParameter String f2cEndpoint,
@@ -1672,6 +1702,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 
     public String getDeployPolicy() {
         return deployPolicy;
+    }
+
+    public String getTaskTypeId() {
+        return taskTypeId;
     }
 
     public String getApplicationVersionName() {

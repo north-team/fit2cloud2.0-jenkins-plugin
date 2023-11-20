@@ -147,6 +147,9 @@
                     <f:entry title="部署包类型" field="deployPolicy">
                     <f:select />
                     </f:entry>
+                    <f:entry title="任务类型" field="taskTypeId">
+                        <f:select />
+                    </f:entry>
 
                     <!--<f:optionalBlock title="等待部署成功？" field="waitForCompletion" checked="true" inline="true">-->
                     <!--<f:entry title="查询超时时间 (秒)" field="pollingTimeoutSec">-->

@@ -63,23 +63,10 @@ public class Fit2cloudClient {
     }
 
 
-    public List<ApplicationRepository> getApplicationRepositorys(String workspaceId) {
-        long currentPage = 1L;
-        long pageSize = 100L;
-        long pageCount;
-        List<ApplicationRepository> applicationRepositories = new ArrayList<ApplicationRepository>();
-        Map<String, String> headers = new HashMap<String, String>();
-        headers.put("sourceId", workspaceId);
-        do {
-            Result result = call(ApiUrlConstants.REPOSITORY_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, new HashMap(), headers);
-            Page page = JSON.parseObject(result.getData(), Page.class);
-            String listJson = JSON.toJSONString(page.getListObject());
-            List<ApplicationRepository> appReps = JSON.parseArray(listJson, ApplicationRepository.class);
-            applicationRepositories.addAll(appReps);
-            pageCount = page.getPageCount();
-            currentPage++;
-        } while (pageCount > currentPage);
-        return applicationRepositories;
+    public List<ApplicationRepository> getApplicationRepositories() {
+        Map<String, String> headers = new HashMap<>();
+        Result result = call(ApiUrlConstants.REPOSITORY_LIST , RequestMethod.GET,null, headers);
+        return JSON.parseArray(result.getData(), ApplicationRepository.class);
     }
 
     public List<TagValue> getEnvList() {
@@ -500,7 +487,7 @@ class ApiUrlConstants {
     public static final String APPLICATION_SETTING_LIST = "devops/application/setting/list";
     public static final String APPLICATION_SETTING_GET = "devops/application/deploy/get";
     public static final String USER_PERMISSION_LIST = "dashboard/user/switch/source";
-    public static final String REPOSITORY_LIST = "devops/repository/list";
+    public static final String REPOSITORY_LIST = "devops/repository/list/Nexus";
     public static final String APPLICATION_LIST = "devops/application/list";
     public static final String CLUSTER_LIST = "devops/cluster/list";
     public static final String CLUSTER_ROLE_LIST = "devops/clusterRole/list";

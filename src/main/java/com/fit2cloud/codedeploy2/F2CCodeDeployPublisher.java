@@ -1,6 +1,5 @@
 package com.fit2cloud.codedeploy2;
 
-import com.alibaba.fastjson.JSON;
 import com.fit2cloud.codedeploy2.client.Fit2cloudClient;
 import com.fit2cloud.codedeploy2.client.model.*;
 import com.fit2cloud.codedeploy2.oss.AWSS3Client;
@@ -20,6 +19,7 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import net.sf.json.JSONObject;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.kohsuke.stapler.*;
 
@@ -52,6 +52,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean waitForCompletion;
     private final Long pollingTimeoutSec;
     private final Long pollingFreqSec;
+    private final String repositoryId;
     private final String nexusGroupId;
     private final String nexusArtifactId;
     private final String nexusArtifactVersion;
@@ -138,6 +139,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String excludes,
                                   String appspecFilePath,
                                   String description,
+                                  String repositoryId,
                                   String artifactType,
                                   String deployType,
                                   boolean containerChecked,
@@ -177,6 +179,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String containerAppStorageType) {
         this.f2cEndpoint = f2cEndpoint;
         this.f2cAccessKey = f2cAccessKey;
+        this.repositoryId = repositoryId;
         this.artifactType = StringUtils.isBlank(artifactType) ? ArtifactType.NEXUS : artifactType;
         this.deployType = StringUtils.isBlank(deployType) ? CommonConstants.CONTAINER : deployType;
         this.repositorySettingId = repositorySettingId;
@@ -386,11 +389,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 ////                }
 //            }
 //            if (repSetting != null) {
-            List<ApplicationRepository> repositories = fit2cloudClient.getApplicationRepositorys(workspaceId);
+            List<ApplicationRepository> repositories = fit2cloudClient.getApplicationRepositories();
             for (ApplicationRepository re : repositories) {
-                if (app.getApplicationRepositoryId().equals(re.getId())) {
+                if (this.repositoryId.equals(re.getId())) {
                     applicationRepository = re;
-
                 }
             }
 
@@ -1179,6 +1181,29 @@ public class F2CCodeDeployPublisher extends Publisher {
             return items;
         }
 
+        public ListBoxModel doFillRepositoryIdItems(@QueryParameter String f2cAccessKey,
+                                                     @QueryParameter String f2cSecretKey,
+                                                     @QueryParameter String f2cEndpoint) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                items.add("请选择制品库", "");
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                List<ApplicationRepository> list = fit2CloudClient.getApplicationRepositories();
+                if (CollectionUtils.isNotEmpty(list)) {
+                    for (ApplicationRepository c : list) {
+                        items.add(c.getName(), c.getId());
+                    }
+                }else {
+                    items.clear();
+                    items.add("没有制品库", "");
+                }
+            } catch (Exception e) {
+//            		e.printStackTrace();
+//                return FormValidation.error(e.getMessage());
+            }
+            return items;
+        }
+
         public ListBoxModel doFillContainerApplicationIdItems(@QueryParameter String f2cAccessKey,
                                                               @QueryParameter String f2cSecretKey,
                                                               @QueryParameter String f2cEndpoint,
@@ -1331,60 +1356,6 @@ public class F2CCodeDeployPublisher extends Publisher {
             } catch (Exception e) {
                 // e.printStackTrace();
                 // return FormValidation.error(e.getMessage());
-            }
-            return items;
-        }
-
-        public ListBoxModel doFillRepositorySettingIdItems(@QueryParameter String f2cAccessKey,
-                                                           @QueryParameter String f2cSecretKey,
-                                                           @QueryParameter String f2cEndpoint,
-                                                           @QueryParameter String workspaceId,
-                                                           @QueryParameter String applicationId) {
-            ListBoxModel items = new ListBoxModel();
-            try {
-                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
-                items.add("请选择环境", "");
-                List<ApplicationDTO> applicationDTOS = fit2CloudClient.getApplications(workspaceId, CommonConstants.OTHER);
-
-                ApplicationDTO application = null;
-
-                for (ApplicationDTO applicationDTO : applicationDTOS) {
-                    if (applicationDTO.getId().equals(applicationId)) {
-                        application = applicationDTO;
-                    }
-                }
-
-                assert application != null;
-                List<ApplicationRepositorySetting> list = application.getApplicationRepositorySettings();
-                List<ApplicationRepository> applicationRepositories = fit2CloudClient.getApplicationRepositorys(workspaceId);
-                List<TagValue> envs = fit2CloudClient.getEnvList();
-
-                if (list != null && list.size() > 0) {
-                    for (ApplicationRepositorySetting c : list) {
-                        ApplicationRepository repository = null;
-                        for (ApplicationRepository applicationRepository : applicationRepositories) {
-                            if (applicationRepository.getId().equals(c.getRepositoryId())) {
-                                repository = applicationRepository;
-                            }
-                        }
-                        String envName = null;
-                        for (TagValue env : envs) {
-                            if (env.getId().equals(c.getEnvId())) {
-                                envName = env.getTagValueAlias();
-                            }
-                            if (c.getEnvId().equalsIgnoreCase("ALL")) {
-                                envName = "全部环境";
-                            }
-                        }
-
-
-                        assert repository != null;
-                        items.add(envName + "---" + repository.getType(), String.valueOf(c.getId()));
-                    }
-                }
-            } catch (Exception e) {
-//            		e.printStackTrace();
-//                return FormValidation.error(e.getMessage());
             }
             return items;
         }

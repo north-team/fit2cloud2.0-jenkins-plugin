@@ -1,5 +1,6 @@
 package com.fit2cloud.codedeploy2;
 
+import com.alibaba.fastjson.JSON;
 import com.fit2cloud.codedeploy2.client.Fit2cloudClient;
 import com.fit2cloud.codedeploy2.client.model.*;
 import com.fit2cloud.codedeploy2.oss.AWSS3Client;
@@ -17,6 +18,8 @@ import hudson.tasks.Publisher;
 import hudson.util.DirScanner;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import net.sf.json.JSONObject;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.collections.CollectionUtils;
@@ -25,9 +28,13 @@ import org.kohsuke.stapler.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@SuppressWarnings("unused")
+@EqualsAndHashCode(callSuper = true)
+@Data
 public class F2CCodeDeployPublisher extends Publisher {
     private static final String LOG_PREFIX = "[FIT2CLOUD 代码部署]";
     private final String f2cEndpoint;
@@ -62,8 +69,6 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean artifactoryChecked;
     private final String failStrategy;
     private final String executeType;
-
-
     private final String path;
     //上传到阿里云参数
     private final String objectPrefixAliyun;
@@ -72,6 +77,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final String repositorySettingId;
     private final String artifactType;
     private final String deployType;
+    private final boolean taskChecked;
     private final boolean containerChecked;
     private final boolean otherChecked;
     private final boolean containerAppChecked;
@@ -93,7 +99,7 @@ public class F2CCodeDeployPublisher extends Publisher {
     private final boolean privateImage;
     private final String secret;
 
-    private PrintStream logger;
+    private static PrintStream logger;
 
     private final String containerAppId;
     private final String containerAppVersion;
@@ -110,6 +116,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 
     private boolean checkContainerAppStoragePV;
     private boolean checkContainerAppStorageClass;
+
+    private String runtimeEnvId;
+    private String taskId;
+    private String taskParams;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -142,6 +152,8 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   String repositoryId,
                                   String artifactType,
                                   String deployType,
+                                  String taskParams,
+                                  boolean taskChecked,
                                   boolean containerChecked,
                                   boolean otherChecked,
                                   String repositorySettingId,
@@ -175,8 +187,8 @@ public class F2CCodeDeployPublisher extends Publisher {
                                   boolean containerAppAutoDeploy,
                                   String containerAppRuntimeEnvId,
                                   boolean checkContainerAppStoragePV,
-                                  boolean checkContainerAppStorageClass,
-                                  String containerAppStorageType) {
+                                  boolean checkContainerAppStorageClass, String runtimeEnvId,
+                                  String containerAppStorageType, String taskId) {
         this.f2cEndpoint = f2cEndpoint;
         this.f2cAccessKey = f2cAccessKey;
         this.repositoryId = repositoryId;
@@ -215,6 +227,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         this.artifactoryChecked = StringUtils.equals(artifactType, ArtifactType.ARTIFACTORY);
         this.ossChecked = StringUtils.equals(artifactType, ArtifactType.OSS);
         this.s3Checked = StringUtils.equals(artifactType, ArtifactType.S3);
+        this.taskChecked = StringUtils.equals(deployType, CommonConstants.TASK);
+        this.taskParams = taskParams;
+        this.runtimeEnvId = runtimeEnvId;
+        this.taskId = taskId;
         this.containerChecked = StringUtils.equals(deployType, CommonConstants.CONTAINER);
         this.otherChecked = StringUtils.equals(deployType, CommonConstants.OTHER);
         this.containerAppChecked = StringUtils.equals(deployType, CommonConstants.CONTAINER_APP);
@@ -258,6 +274,18 @@ public class F2CCodeDeployPublisher extends Publisher {
         final Fit2cloudClient fit2cloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
 
         log("开始校验参数...");
+        if (StringUtils.equals(deployType, CommonConstants.TASK)) {
+            try {
+                TaskDeployment taskDeployment = doCheckTaskParams(fit2cloudClient);
+                String result = fit2cloudClient.deployTask(taskDeployment, getWorkspaceId());
+                log(result);
+                log("任务触发成功，请前往云管平台查看执行结果。");
+                return true;
+            } catch (Exception e) {
+                log(e.getMessage());
+                return false;
+            }
+        }
         //容器应用部署
         if (StringUtils.equals(deployType, CommonConstants.CONTAINER)) {
             try {
@@ -269,7 +297,7 @@ public class F2CCodeDeployPublisher extends Publisher {
                 //3 根据应用版本创建容器应用任务。
                 this.createContainerTaskAndRun(fit2cloudClient, dto);
                 //4 检测任务是否执行成功
-                this.checkTaskStatus(fit2cloudClient, dto);
+                this.checkTaskStatus(fit2cloudClient, dto.getWorkFlowJobId());
 
                 return true;
             } catch (Exception e) {
@@ -405,10 +433,10 @@ public class F2CCodeDeployPublisher extends Publisher {
 
         FilePath workspace = build.getWorkspace();
         File zipFile = null;
-        String zipFileName = null;
-        String newAddress = null;
+        String zipFileName;
+        String newAddress;
 
-        String fileMd5 = "";
+        String fileMd5;
 
         try {
             zipFileName = projectName + "-" + builtNumber + ".zip";
@@ -422,9 +450,12 @@ public class F2CCodeDeployPublisher extends Publisher {
                 }
 
                 File tmpFile = new File("/tmp/" + UUID.randomUUID());
-                tmpFile.createNewFile();
-                FilePath fp = new FilePath(workspace, zipFilePathNew);
-                fp.copyTo(new FileOutputStream(tmpFile));
+                boolean newFile = tmpFile.createNewFile();
+                FilePath fp;
+                if (workspace != null) {
+                    fp = new FilePath(workspace, zipFilePathNew);
+                    fp.copyTo(new FileOutputStream(tmpFile));
+                }
                 zipFile = tmpFile;
             } else {
                 zipFile = zipFile(zipFileName, workspace, includesNew, excludesNew, appspecFilePathNew);
@@ -598,8 +629,6 @@ public class F2CCodeDeployPublisher extends Publisher {
         ApplicationVersionDTO applicationVersion = new ApplicationVersionDTO();
         applicationVersion.setAppId(this.applicationId);
         applicationVersion.setName(newAppVersion);
-//            assert repSetting != null;
-//            applicationVersion.setEnvironmentValueId(repSetting.getEnvId());
         applicationVersion.setApplicationRepositoryId(applicationRepository.getId());
         applicationVersion.setResourcePath(newAddress);
         applicationVersion.setDeployType("add");
@@ -616,24 +645,12 @@ public class F2CCodeDeployPublisher extends Publisher {
         } catch (Exception e) {
             e.printStackTrace();
         }
-//        File f = new File(workspace.toString() + newAddress.split("/")[newAddress.split("/").length-1]);
-//        if(f == null){
-//            log("f为空");
-//        }else{
-//            log("f不为空");
-//            log(f.getName());
-//            log(f.getPath());
-//        }
         log("应用id: " + applicationVersion.getAppId());
         log("版本名称: " + applicationVersion.getName());
         log("url: " + applicationVersion.getResourcePath());
         log("zip: " + zipFile);
         log("MD5: " + applicationVersion.getFileMd5());
         appVersion = fit2cloudClient.createApplicationVersion(applicationVersion, this.workspaceId);
-//        } catch (Exception e) {
-//            log("版本注册失败！ 原因：" + e.getMessage());
-//            return false;
-//        }
         log("注册版本成功！");
 
         ApplicationDeployment applicationDeploy = null;
@@ -663,50 +680,65 @@ public class F2CCodeDeployPublisher extends Publisher {
             return false;
         }
 
-//        try {
-//            int i = 0;
-//            if (this.autoDeploy && this.waitForCompletion) {
-//                log("执行代码部署...");
-//                while (true) {
-//                    Thread.sleep(1000 * pollingFreqSec);
-//                    ApplicationDeployment applicationDeployment = fit2cloudClient.getApplicationDeployment(applicationDeploy.getId());
-//                    if (applicationDeployment.getStatus().equalsIgnoreCase("success")
-//                            || applicationDeployment.getStatus().equalsIgnoreCase("fail")) {
-//                        log("部署完成！");
-//                        if (applicationDeployment.getStatus().equalsIgnoreCase("success")) {
-//                            log("部署结果: 成功");
-//                        } else {
-//                            throw new Exception("部署任务执行失败，具体结果请登录FIT2CLOUD控制台查看！");
-//                        }
-//                        break;
-//                    } else {
-//                        log("部署任务运行中...");
-//                    }
-//                }
-//                if (pollingFreqSec * ++i > pollingTimeoutSec) {
-//                    throw new Exception("部署超时,请查看FIT2CLOUD控制台！");
-//                }
-//            }
-//        } catch (Exception e) {
-//            log("执行代码部署失败: " + e.getMessage());
-//            return false;
-//        }
-//
 
         return true;
     }
 
-    private void checkTaskStatus(Fit2cloudClient fit2cloudClient, ContainerDeployTmpDto dto) {
+    private TaskDeployment doCheckTaskParams(Fit2cloudClient fit2cloudClient) {
+        if (StringUtils.isBlank(taskId)) {
+            throw new RuntimeException("未选择要执行的任务！");
+        }
+        TaskDeployment taskDeployment = new TaskDeployment(runtimeEnvId, taskId);
+
+        List<TaskDTO> tasks = fit2cloudClient.getTasks(workspaceId, runtimeEnvId);
+        TaskDTO taskDTO = tasks.stream()
+                .filter(task -> StringUtils.equalsIgnoreCase(String.valueOf(task.getId()), taskId))
+                .findFirst().orElseThrow(() -> new RuntimeException("未找到要执行的任务！"));
+
+
+        if (StringUtils.isNotBlank(taskParams)) {
+
+            String[] split = taskParams.trim().split(",");
+            Map<String, String> params = new HashMap<>();
+            Arrays.asList(split).forEach(s -> {
+                String[] keyValue = s.split("=");
+                params.put(keyValue[0], keyValue[1]);
+            });
+
+            String scriptVars = taskDTO.getScriptVars();
+            if (StringUtils.isNotBlank(scriptVars)) {
+                List<ScriptVar> scriptVarList = JSON.parseArray(scriptVars, ScriptVar.class);
+                List<String> errorList = new ArrayList<>();
+                scriptVarList.forEach(scriptVar -> {
+                    String varValue = params.get(scriptVar.getKey());
+                    if (StringUtils.isNotBlank(varValue)) {
+                        scriptVar.setDefaultValue(varValue);
+                    } else if (scriptVar.isRequired() && StringUtils.isBlank(scriptVar.getDefaultValue())) {
+                        errorList.add("任务参数 " + scriptVar.getKey() + " 不能为空！");
+                    }
+                });
+                if (!errorList.isEmpty()) {
+                    throw new RuntimeException(String.join(",", errorList));
+                }
+                taskDeployment.setScriptVars(scriptVarList);
+            }
+        }
+
+        return taskDeployment;
+    }
+
+
+    private void checkTaskStatus(Fit2cloudClient fit2cloudClient, String jobId) {
         String status;
         while (true) {
-            status = fit2cloudClient.selectWorkJobStatus(dto.getWorkFlowJobId());
+            status = fit2cloudClient.selectWorkJobStatus(jobId);
             if (StringUtils.equalsAnyIgnoreCase(status, CommonConstants.SUCCESS, CommonConstants.FAILED, CommonConstants.OVERTIME)) {
                 break;
             }
             try {
-                Thread.sleep(2000);
+                TimeUnit.SECONDS.sleep(5);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                log("查询任务状态异常: " + e.getMessage());
             }
         }
         if (StringUtils.equalsIgnoreCase(CommonConstants.FAILED, status)) {
@@ -1048,6 +1080,79 @@ public class F2CCodeDeployPublisher extends Publisher {
         return zipFile;
     }
 
+    private ApplicationSetting findApplicationSetting(String applicationId) {
+        ApplicationSetting applicationSetting = null;
+        final Fit2cloudClient fit2cloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
+        List<ApplicationSetting> applicationSettings = fit2cloudClient.getApplicationSettings(applicationId);
+        for (ApplicationSetting appSetting : applicationSettings) {
+            if (appSetting.getId().equalsIgnoreCase(this.applicationSettingId)) {
+                applicationSetting = appSetting;
+            }
+        }
+        return applicationSetting;
+    }
+
+
+
+    private void log(String msg) {
+        logger.println(LOG_PREFIX + msg);
+    }
+
+
+    @DataBoundSetter
+    public void setContainerAppClusterId(String containerAppClusterId) {
+        this.containerAppClusterId = containerAppClusterId;
+    }
+
+    @DataBoundSetter
+    public void setContainerAppNamespaceId(String containerAppNamespaceId) {
+        this.containerAppNamespaceId = containerAppNamespaceId;
+    }
+
+
+    @DataBoundSetter
+    public void setContainerAppPv(String containerAppPv) {
+        this.containerAppPv = containerAppPv;
+    }
+
+
+    @DataBoundSetter
+    public void setContainerAppStorageClass(String containerAppStorageClass) {
+        this.containerAppStorageClass = containerAppStorageClass;
+    }
+
+
+    @DataBoundSetter
+    public void setContainerAppStorageType(String containerAppStorageType) {
+        this.containerAppStorageType = containerAppStorageType;
+    }
+
+    @DataBoundSetter
+    public void setCheckContainerAppStoragePV(boolean checkContainerAppStoragePV) {
+        this.checkContainerAppStoragePV = checkContainerAppStoragePV;
+    }
+
+    @DataBoundSetter
+    public void setCheckContainerAppStorageClass(boolean checkContainerAppStorageClass) {
+        this.checkContainerAppStorageClass = checkContainerAppStorageClass;
+    }
+
+
+    @DataBoundSetter
+    public void setTaskParams(String taskParams) {
+        this.taskParams = taskParams;
+    }
+
+    @DataBoundSetter
+    public void setRuntimeEnvId(String runtimeEnvId) {
+        this.runtimeEnvId = runtimeEnvId;
+    }
+
+    @DataBoundSetter
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
+    }
+
 
     @Override
     public DescriptorImpl getDescriptor() {
@@ -1059,6 +1164,7 @@ public class F2CCodeDeployPublisher extends Publisher {
         return BuildStepMonitor.STEP;
     }
 
+    @SuppressWarnings("unused")
     @Extension // This indicates to Jenkins that this is an implementation of an extension point.
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
         public FormValidation doCheckAccount(
@@ -1182,8 +1288,8 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         public ListBoxModel doFillRepositoryIdItems(@QueryParameter String f2cAccessKey,
-                                                     @QueryParameter String f2cSecretKey,
-                                                     @QueryParameter String f2cEndpoint) {
+                                                    @QueryParameter String f2cSecretKey,
+                                                    @QueryParameter String f2cEndpoint) {
             ListBoxModel items = new ListBoxModel();
             try {
                 items.add("请选择制品库", "");
@@ -1228,11 +1334,67 @@ public class F2CCodeDeployPublisher extends Publisher {
             return items;
         }
 
+        public ListBoxModel doFillRuntimeEnvIdItems(@QueryParameter String f2cAccessKey,
+                                                    @QueryParameter String f2cSecretKey,
+                                                    @QueryParameter String f2cEndpoint,
+                                                    @QueryParameter String workspaceId) {
+            ListBoxModel items = new ListBoxModel();
+            items.add("所有运行环境", "");
+            try {
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                List<ClusterDTO> list = fit2CloudClient.getClusters(workspaceId);
+
+                if (CollectionUtils.isNotEmpty(list)) {
+                    for (ClusterDTO c : list) {
+                        String workspaceName = StringUtils.isNotBlank(c.getWorkspaceName()) ? "[" + c.getWorkspaceName() + "]" : "";
+                        items.add(c.getName() + workspaceName, String.valueOf(c.getId()));
+                    }
+                }
+            } catch (Exception e) {
+                logger.println(e.getMessage());
+            }
+            return items;
+        }
+
+
+        public ListBoxModel doFillTaskIdItems(@QueryParameter String f2cAccessKey,
+                                              @QueryParameter String f2cSecretKey,
+                                              @QueryParameter String f2cEndpoint,
+                                              @QueryParameter String workspaceId,
+                                              @QueryParameter String runtimeEnvId) {
+            ListBoxModel items = new ListBoxModel();
+            try {
+                items.add("请选择任务", "");
+                List<TaskDTO> list = new ArrayList<>();
+                Fit2cloudClient fit2CloudClient = new Fit2cloudClient(f2cAccessKey, f2cSecretKey, f2cEndpoint);
+                list = fit2CloudClient.getTasks(workspaceId, runtimeEnvId);
+                if (CollectionUtils.isNotEmpty(list)) {
+                    for (TaskDTO c : list) {
+                        String taskTypeName;
+                        String taskType = c.getTaskType();
+                        if (StringUtils.equalsIgnoreCase(taskType, "shellType")) {
+                            taskTypeName = "脚本任务";
+                        } else if (StringUtils.equalsIgnoreCase(taskType, "deployType")) {
+                            taskTypeName = "应用任务";
+                        } else {
+                            taskTypeName = taskType;
+                        }
+                        items.add(c.getName() + "[" + taskTypeName + "]", String.valueOf(c.getId()));
+                    }
+                }
+            } catch (Exception e) {
+                logger.println(e.getMessage());
+            }
+            return items;
+        }
+
+
+
 
         public ListBoxModel doFillContainerAppRuntimeEnvIdItems(@QueryParameter String f2cAccessKey,
-                                                              @QueryParameter String f2cSecretKey,
-                                                              @QueryParameter String f2cEndpoint,
-                                                              @QueryParameter String workspaceId) {
+                                                                @QueryParameter String f2cSecretKey,
+                                                                @QueryParameter String f2cEndpoint,
+                                                                @QueryParameter String workspaceId) {
             ListBoxModel items = new ListBoxModel();
             try {
                 List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
@@ -1255,9 +1417,9 @@ public class F2CCodeDeployPublisher extends Publisher {
 
 
         public ListBoxModel doFillContainerAppClusterIdItems(@QueryParameter String f2cAccessKey,
-                                                              @QueryParameter String f2cSecretKey,
-                                                              @QueryParameter String f2cEndpoint,
-                                                              @QueryParameter String workspaceId) {
+                                                             @QueryParameter String f2cSecretKey,
+                                                             @QueryParameter String f2cEndpoint,
+                                                             @QueryParameter String workspaceId) {
             ListBoxModel items = new ListBoxModel();
             try {
                 List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
@@ -1278,10 +1440,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         public ListBoxModel doFillContainerAppNamespaceIdItems(@QueryParameter String f2cAccessKey,
-                                                              @QueryParameter String f2cSecretKey,
-                                                              @QueryParameter String f2cEndpoint,
-                                                              @QueryParameter String workspaceId,
-                                                              @QueryParameter String containerAppClusterId) {
+                                                               @QueryParameter String f2cSecretKey,
+                                                               @QueryParameter String f2cEndpoint,
+                                                               @QueryParameter String workspaceId,
+                                                               @QueryParameter String containerAppClusterId) {
             ListBoxModel items = new ListBoxModel();
             try {
                 List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
@@ -1306,10 +1468,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         public ListBoxModel doFillContainerAppPvItems(@QueryParameter String f2cAccessKey,
-                                                               @QueryParameter String f2cSecretKey,
-                                                               @QueryParameter String f2cEndpoint,
-                                                               @QueryParameter String workspaceId,
-                                                               @QueryParameter String containerAppClusterId) {
+                                                      @QueryParameter String f2cSecretKey,
+                                                      @QueryParameter String f2cEndpoint,
+                                                      @QueryParameter String workspaceId,
+                                                      @QueryParameter String containerAppClusterId) {
             ListBoxModel items = new ListBoxModel();
             try {
                 List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
@@ -1337,10 +1499,10 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         public ListBoxModel doFillContainerAppStorageClassItems(@QueryParameter String f2cAccessKey,
-                                                      @QueryParameter String f2cSecretKey,
-                                                      @QueryParameter String f2cEndpoint,
-                                                      @QueryParameter String workspaceId,
-                                                      @QueryParameter String containerAppClusterId) {
+                                                                @QueryParameter String f2cSecretKey,
+                                                                @QueryParameter String f2cEndpoint,
+                                                                @QueryParameter String workspaceId,
+                                                                @QueryParameter String containerAppClusterId) {
             ListBoxModel items = new ListBoxModel();
             try {
                 List<com.alibaba.fastjson.JSONObject> list = new ArrayList<>();
@@ -1388,12 +1550,12 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
         public ListBoxModel doFillTaskTypeIdItems(@QueryParameter String f2cAccessKey,
-                                                 @QueryParameter String f2cSecretKey,
-                                                 @QueryParameter String f2cEndpoint,
-                                                 @QueryParameter String workspaceId,
-                                                 @QueryParameter String applicationId,
-                                                 @QueryParameter String repositorySettingId,
-                                                 @QueryParameter String applicationRepositoryId) {
+                                                  @QueryParameter String f2cSecretKey,
+                                                  @QueryParameter String f2cEndpoint,
+                                                  @QueryParameter String workspaceId,
+                                                  @QueryParameter String applicationId,
+                                                  @QueryParameter String repositorySettingId,
+                                                  @QueryParameter String applicationRepositoryId) {
             ListBoxModel items = new ListBoxModel();
             items.add("请选择任务类型", "");
 
@@ -1596,329 +1758,5 @@ public class F2CCodeDeployPublisher extends Publisher {
         }
 
 
-    }
-
-    private ApplicationSetting findApplicationSetting(String applicationId) {
-        ApplicationSetting applicationSetting = null;
-        final Fit2cloudClient fit2cloudClient = new Fit2cloudClient(this.f2cAccessKey, this.f2cSecretKey, this.f2cEndpoint);
-        List<ApplicationSetting> applicationSettings = fit2cloudClient.getApplicationSettings(applicationId);
-        for (ApplicationSetting appst : applicationSettings) {
-            if (appst.getId().equalsIgnoreCase(this.applicationSettingId)) {
-                applicationSetting = appst;
-            }
-        }
-        return applicationSetting;
-    }
-
-
-    public String getF2cEndpoint() {
-        return f2cEndpoint;
-    }
-
-    public String getF2cAccessKey() {
-        return f2cAccessKey;
-    }
-
-    public String getF2cSecretKey() {
-        return f2cSecretKey;
-    }
-
-    public String getApplicationRepositoryId() {
-        return applicationRepositoryId;
-    }
-
-    public String getApplicationId() {
-        return applicationId;
-    }
-
-    public boolean isNexusChecked() {
-        return nexusChecked;
-    }
-
-    public boolean isOssChecked() {
-        return ossChecked;
-    }
-
-    public boolean isS3Checked() {
-        return s3Checked;
-    }
-
-    public boolean isAutoDeploy() {
-        return autoDeploy;
-    }
-
-    public boolean isArtifactoryChecked() {
-        return artifactoryChecked;
-    }
-
-    public String getApplicationSettingId() {
-        return applicationSettingId;
-    }
-
-    public String getClusterId() {
-        return clusterId;
-    }
-
-    public String getClusterRoleId() {
-        return clusterRoleId;
-    }
-
-    public String getWorkspaceId() {
-        return workspaceId;
-    }
-
-    public String getCloudServerId() {
-        return cloudServerId;
-    }
-
-    public String getDeployPolicy() {
-        return deployPolicy;
-    }
-
-    public String getTaskTypeId() {
-        return taskTypeId;
-    }
-
-    public String getApplicationVersionName() {
-        return applicationVersionName;
-    }
-
-    public String getIncludes() {
-        return includes;
-    }
-
-    public String getExcludes() {
-        return excludes;
-    }
-
-    public String getAppspecFilePath() {
-        return appspecFilePath;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public boolean isWaitForCompletion() {
-        return waitForCompletion;
-    }
-
-    public Long getPollingTimeoutSec() {
-        return pollingTimeoutSec;
-    }
-
-    public Long getPollingFreqSec() {
-        return pollingFreqSec;
-    }
-
-    private void log(String msg) {
-        logger.println(LOG_PREFIX + msg);
-    }
-
-    public String getRepositorySettingId() {
-        return repositorySettingId;
-    }
-
-    public String getArtifactType() {
-        return artifactType;
-    }
-
-    public String getObjectPrefixAliyun() {
-        return objectPrefixAliyun;
-    }
-
-    public String getObjectPrefixAWS() {
-        return objectPrefixAWS;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public String getNexusGroupId() {
-        return nexusGroupId;
-    }
-
-    public String getNexusArtifactId() {
-        return nexusArtifactId;
-    }
-
-    public String getNexusArtifactVersion() {
-        return nexusArtifactVersion;
-    }
-
-    public boolean isCustomZip() {
-        return customZip;
-    }
-
-    public String getZipFilePath() {
-        return zipFilePath;
-    }
-
-    public String getExecuteType() {
-        return executeType;
-    }
-
-    public String getDeployType() {
-        return deployType;
-    }
-
-    public boolean isContainerChecked() {
-        return containerChecked;
-    }
-
-    public boolean isOtherChecked() {
-        return otherChecked;
-    }
-
-    public boolean isContainerAppChecked() {
-        return containerAppChecked;
-    }
-
-    public String getContainerApplicationId() {
-        return containerApplicationId;
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public Integer getContainerPort() {
-        return containerPort;
-    }
-
-    public String getDeployNamespaceId() {
-        return deployNamespaceId;
-    }
-
-    public String getDeployClusterId() {
-        return deployClusterId;
-    }
-
-    public String getDeployDeploymentsId() {
-        return deployDeploymentsId;
-    }
-
-    public String getPortType() {
-        return portType;
-    }
-
-    public boolean isClusterIpChecked() {
-        return clusterIpChecked;
-    }
-
-    public boolean isNodePortChecked() {
-        return nodePortChecked;
-    }
-
-    public Integer getNodePort() {
-        return nodePort;
-    }
-
-    public boolean isHeadless() {
-        return headless;
-    }
-
-    public boolean isPrivateImage() {
-        return privateImage;
-    }
-
-    public String getSecret() {
-        return secret;
-    }
-
-    public boolean isNoCustomZip() {
-        return noCustomZip;
-    }
-
-    public String getContainerAppId() {
-        return containerAppId;
-    }
-
-    public String getContainerAppVersion() {
-        return containerAppVersion;
-    }
-
-    public String getContainerAppVersionDesc() {
-        return containerAppVersionDesc;
-    }
-
-    public String getApplicationImageTag() {
-        return applicationImageTag;
-    }
-
-    public String getApplicationImage() {
-        return applicationImage;
-    }
-
-    public boolean isContainerAppAutoDeploy() {
-        return containerAppAutoDeploy;
-    }
-
-    public String getContainerAppRuntimeEnvId() {
-        return containerAppRuntimeEnvId;
-    }
-
-    public String getContainerAppClusterId() {
-        return containerAppClusterId;
-    }
-
-    public String getContainerAppNamespaceId() {
-        return containerAppNamespaceId;
-    }
-
-    @DataBoundSetter
-    public void setContainerAppClusterId(String containerAppClusterId) {
-        this.containerAppClusterId = containerAppClusterId;
-    }
-
-    @DataBoundSetter
-    public void setContainerAppNamespaceId(String containerAppNamespaceId) {
-        this.containerAppNamespaceId = containerAppNamespaceId;
-    }
-
-    public String getContainerAppPv() {
-        return containerAppPv;
-    }
-
-    @DataBoundSetter
-    public void setContainerAppPv(String containerAppPv) {
-        this.containerAppPv = containerAppPv;
-    }
-
-    public String getContainerAppStorageClass() {
-        return containerAppStorageClass;
-    }
-
-    @DataBoundSetter
-    public void setContainerAppStorageClass(String containerAppStorageClass) {
-        this.containerAppStorageClass = containerAppStorageClass;
-    }
-
-    public boolean isCheckContainerAppStoragePV() {
-        return checkContainerAppStoragePV;
-    }
-
-    public boolean isCheckContainerAppStorageClass() {
-        return checkContainerAppStorageClass;
-    }
-
-    public String getContainerAppStorageType() {
-        return containerAppStorageType;
-    }
-
-    @DataBoundSetter
-    public void setContainerAppStorageType(String containerAppStorageType) {
-        this.containerAppStorageType = containerAppStorageType;
-    }
-
-    @DataBoundSetter
-    public void setCheckContainerAppStoragePV(boolean checkContainerAppStoragePV) {
-        this.checkContainerAppStoragePV = checkContainerAppStoragePV;
-    }
-
-    @DataBoundSetter
-    public void setCheckContainerAppStorageClass(boolean checkContainerAppStorageClass) {
-        this.checkContainerAppStorageClass = checkContainerAppStorageClass;
     }
 }

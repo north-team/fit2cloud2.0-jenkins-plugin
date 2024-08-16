@@ -1,6 +1,7 @@
 package com.fit2cloud.codedeploy2;
 
 public interface CommonConstants {
+    String TASK = "task";
     String CONTAINER = "container";
     String OTHER = "other";
     String CONTAINER_APP = "containerApp";

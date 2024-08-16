@@ -22,6 +22,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class Fit2cloudClient {
@@ -136,6 +137,9 @@ public class Fit2cloudClient {
         headers.put("sourceId", workspaceId);
         HashMap<String, Object> params = new HashMap<>();
         Result result = call(ApiUrlConstants.CONTAINER_APPLICATION_DETAIL + "/" + containerAppId, RequestMethod.GET, params, headers);
+        if (StringUtils.isBlank(result.getData())) {
+            return Lists.newArrayList();
+        }
         return JSON.parseArray(result.getData(), JSONObject.class);
     }
 
@@ -415,12 +419,12 @@ public class Fit2cloudClient {
 
 
     private static String aesEncrypt(String src, String secretKey, String iv) throws Exception {
-        byte[] raw = secretKey.getBytes("UTF-8");
+        byte[] raw = secretKey.getBytes(StandardCharsets.UTF_8);
         SecretKeySpec secretKeySpec = new SecretKeySpec(raw, "AES");
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         IvParameterSpec iv1 = new IvParameterSpec(iv.getBytes());
         cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, iv1);
-        byte[] encrypted = cipher.doFinal(src.getBytes("UTF-8"));
+        byte[] encrypted = cipher.doFinal(src.getBytes(StandardCharsets.UTF_8));
         return Base64.encodeBase64String(encrypted);
 
     }
@@ -479,6 +483,38 @@ public class Fit2cloudClient {
         }
         return result.getData();
     }
+
+    public List<TaskDTO> getTasks(String workspaceId, String runtimeEnvId) {
+        long currentPage = 0L;
+        long pageSize = 100L;
+        long pageCount;
+        List<TaskDTO> tasks = new ArrayList<>();
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+
+        do {
+            currentPage++;
+            HashMap<String, Object> params = new HashMap<>();
+            params.put("createType", "MANUAL");
+            if (StringUtils.isNotEmpty(runtimeEnvId)) {
+                params.put("clusterId", runtimeEnvId);
+            }
+            Result result = call(ApiUrlConstants.TASK_LIST + "/" + currentPage + "/" + pageSize, RequestMethod.POST, params, headers);
+            Page page = JSON.parseObject(result.getData(), Page.class);
+            String listJson = JSON.toJSONString(page.getListObject());
+            List<TaskDTO> apps = JSON.parseArray(listJson, TaskDTO.class);
+            tasks.addAll(apps);
+            pageCount = page.getPageCount();
+        } while (pageCount > currentPage);
+        return tasks;
+    }
+
+    public String deployTask(TaskDeployment taskDeployment, String workspaceId) {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("sourceId", workspaceId);
+        Result result = call(ApiUrlConstants.TASK_DEPLOY, RequestMethod.POST, taskDeployment, headers);
+        return result.getData();
+    }
 }
 
 class ApiUrlConstants {
@@ -496,6 +532,7 @@ class ApiUrlConstants {
     public static final String APPLICATION_VERSION_SAVE = "devops/application/version/save-version";
     public static final String APPLICATION_DEPLOY_SAVE = "devops/application/deploy/save";
     public static final String APPLICATION_VERSION_DEPLOY = "devops/application/version/deploy";
+    public static final String TASK_DEPLOY = "devops/application/version/task/deploy";
     public static final String APPLICATION_ENV_LIST = "devops/application/setting/env/list";
     public static final String NAMESPACE_LIST = "devops/container/resource/k8s/Namespace/getResourceByWorkspaceId";
     public static final String CONTAINER_CLUSTER_LIST = "devops/container/cluster/list";
@@ -516,6 +553,7 @@ class ApiUrlConstants {
     public static final String CONTAINER_APPLICATION_NAMESPACE_LIST = "container-service/namespace/listByCluster";
     public static final String CONTAINER_PV_LIST = "container-service/pv/list/all";
     public static final String CONTAINER_STORAGE_CLASS_LIST = "container-service/storageClass/list/all";
+    public static final String TASK_LIST = "devops/work/list";
 
 
 }

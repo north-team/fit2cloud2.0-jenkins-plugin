@@ -21,7 +21,22 @@
     </f:section>
 
     <f:section title="部署类型">
-        <f:radioBlock title="容器部署" name="deployType" value="container" inline="true" checked="${instance.containerChecked}">
+        <f:radioBlock title="任务部署" name="deployType" value="task" inline="true" checked="${instance.isTaskChecked()}">
+            <f:section title="选择要触发的任务">
+                <f:entry title="运行环境" field="runtimeEnvId">
+                    <f:select />
+                </f:entry>
+                <f:entry title="任务列表" field="taskId">
+                    <f:select/>
+                </f:entry>
+                <f:entry title="任务参数" field="taskParams">
+                    <f:textarea/>
+                </f:entry>
+
+
+            </f:section>
+        </f:radioBlock>
+        <f:radioBlock title="容器部署" name="deployType" value="container" inline="true" checked="${instance.isContainerChecked()}">
             <f:section title="应用版本设置">
                 <f:entry title="应用名称" field="containerApplicationId">
                     <f:select />
@@ -63,7 +78,7 @@
                 </f:section>
             </f:section>
         </f:radioBlock>
-        <f:radioBlock title="非容器部署" name="deployType" value="standard" inline="true" checked="${instance.otherChecked}">
+        <f:radioBlock title="非容器部署" name="deployType" value="faotherlse" inline="true" checked="${instance.isOtherChecked()}">
             <f:entry title="应用名称" field="applicationId">
                 <f:select />
             </f:entry>
@@ -162,7 +177,7 @@
                 </f:optionalBlock>
             </f:section>
         </f:radioBlock>
-        <f:radioBlock title="集群应用部署" name="deployType" value="containerApp" inline="true" checked="${instance.containerAppChecked}">
+        <f:radioBlock title="集群应用部署" name="deployType" value="containerApp" inline="true" checked="${instance.isContainerAppChecked()}">
             <f:section title="应用设置">
                 <f:entry title="集群" field="containerAppClusterId">
                     <f:select />
